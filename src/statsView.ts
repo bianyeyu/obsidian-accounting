@@ -201,6 +201,10 @@ export class StatsView extends ItemView {
      */
     private addTabNavigation(): void {
         const tabsEl = this.contentEl.createDiv('stats-tabs');
+        // Make the tab container flexible and allow wrapping
+        tabsEl.style.display = 'flex'; 
+        tabsEl.style.flexWrap = 'wrap'; 
+        tabsEl.style.gap = '5px'; // Add some gap between buttons
         
         // Create tabs
         const tabs = [
@@ -247,6 +251,11 @@ export class StatsView extends ItemView {
      */
     private addSecondaryTabNavigation(containerEl: HTMLElement): void {
         const secondaryTabsEl = containerEl.createDiv('secondary-stats-tabs');
+         // Style secondary tabs similar to main tabs for consistency
+        secondaryTabsEl.style.display = 'flex';
+        secondaryTabsEl.style.flexWrap = 'wrap';
+        secondaryTabsEl.style.gap = '5px'; 
+        secondaryTabsEl.style.marginTop = '10px'; // Add some space above secondary tabs
         
         // Create tabs
         const tabs = [
@@ -275,7 +284,7 @@ export class StatsView extends ItemView {
                 tabEl.addClass('active');
                 
                 // Re-render the current tab content (which should respect the secondary tab)
-                this.renderStats(); // Re-render the whole view might be needed depending on structure
+                this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
             });
         });
     }
@@ -447,35 +456,39 @@ export class StatsView extends ItemView {
         let startDate: moment.Moment | null = null;
         let endDate: moment.Moment | null = null;
         const now = moment();
+        let periodDefinedBySecondaryTab = true; // Flag to check if secondary tab sets the date
 
         switch (this.currentSecondaryTab) {
             case SecondaryTab.DAILY:
-                startDate = now.clone().startOf('day');
-                endDate = now.clone().endOf('day');
+                startDate = moment(this.selectedDate).startOf('day'); // Use selectedDate
+                endDate = moment(this.selectedDate).endOf('day');
                 break;
             case SecondaryTab.MONTHLY:
-                startDate = now.clone().startOf('month');
-                endDate = now.clone().endOf('month');
+                 startDate = moment(this.selectedDate).startOf('month'); // Use selectedDate
+                 endDate = moment(this.selectedDate).endOf('month');
                 break;
             case SecondaryTab.YEARLY:
-                startDate = now.clone().startOf('year');
-                endDate = now.clone().endOf('year');
+                 startDate = moment(this.selectedDate).startOf('year'); // Use selectedDate
+                 endDate = moment(this.selectedDate).endOf('year');
                 break;
             case SecondaryTab.CUSTOM:
-                // Use the main date range filter for custom
+                periodDefinedBySecondaryTab = false; // Custom uses the main filter
                 break;
         }
 
         return this.transactions.filter(transaction => {
-            // Filter by main date range first
-            if (!this.isTransactionInDateRange(transaction)) {
-                return false;
-            }
-
+            const transactionMoment = moment(normalizeTransactionDate(transaction.date));
+            
+            // Filter by main date range (only if secondary tab is Custom OR if Overview tab is not selected)
+             if (!periodDefinedBySecondaryTab || this.currentTab !== StatsTab.OVERVIEW) {
+                 if (!this.isTransactionInMainDateRange(transaction)) {
+                     return false;
+                 }
+             }
+             
             // Apply secondary tab date filtering if applicable (and not 'custom')
-            if (this.currentSecondaryTab !== SecondaryTab.CUSTOM && startDate && endDate) {
-                // Ensure we compare moment objects
-                const transactionMoment = moment(normalizeTransactionDate(transaction.date));
+            // This applies ONLY when the Overview tab is selected
+            if (this.currentTab === StatsTab.OVERVIEW && periodDefinedBySecondaryTab && startDate && endDate) {
                 if (!transactionMoment.isBetween(startDate, endDate, undefined, '[]')) {
                     return false;
                 }
@@ -503,55 +516,53 @@ export class StatsView extends ItemView {
     /**
      * Check if a transaction is within the selected date range (main filter)
      */
-    private isTransactionInDateRange(transaction: Transaction): boolean {
-        // Extract just the date part and parse it
-        const dateString = transaction.date.includes(' ') 
-            ? transaction.date.split(' ')[0] 
-            : transaction.date;
-            
-        const transactionDate = moment(dateString, 'YYYY-MM-DD');
+    private isTransactionInMainDateRange(transaction: Transaction): boolean {
+        // Use normalized date for comparison
+        const transactionMoment = moment(normalizeTransactionDate(transaction.date));
         const now = moment();
         
         switch (this.dateRange) {
             case 'this-month':
-                return transactionDate.isSame(now, 'month');
+                return transactionMoment.isSame(now, 'month');
             
             case 'last-month':
                 const lastMonth = moment().subtract(1, 'month');
-                return transactionDate.isSame(lastMonth, 'month');
+                return transactionMoment.isSame(lastMonth, 'month');
             
             case 'this-year':
-                return transactionDate.isSame(now, 'year');
+                return transactionMoment.isSame(now, 'year');
             
             case 'last-year':
                 const lastYear = moment().subtract(1, 'year');
-                return transactionDate.isSame(lastYear, 'year');
+                return transactionMoment.isSame(lastYear, 'year');
             
             case 'all-time':
                 return true;
             
             case 'custom':
                 if (!this.customStartDate && !this.customEndDate) {
-                    return true;
+                    return true; // No custom dates set, include everything
                 }
                 
                 let isAfterStart = true;
                 let isBeforeEnd = true;
                 
                 if (this.customStartDate) {
-                    const startDate = moment(this.customStartDate);
-                    isAfterStart = transactionDate.isSameOrAfter(startDate, 'day');
+                    // Parse custom start date assuming local time and compare at day level
+                    const startDate = moment(this.customStartDate).startOf('day');
+                    isAfterStart = transactionMoment.isSameOrAfter(startDate); 
                 }
                 
                 if (this.customEndDate) {
-                    const endDate = moment(this.customEndDate);
-                    isBeforeEnd = transactionDate.isSameOrBefore(endDate, 'day');
+                    // Parse custom end date assuming local time and compare at day level
+                    const endDate = moment(this.customEndDate).endOf('day');
+                    isBeforeEnd = transactionMoment.isSameOrBefore(endDate);
                 }
                 
                 return isAfterStart && isBeforeEnd;
             
             default:
-                return true;
+                return true; // Should not happen, but default to true
         }
     }
 
@@ -581,13 +592,14 @@ export class StatsView extends ItemView {
      * Render the Overview tab
      */
     private renderOverviewTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Overview' });
+        // containerEl.createEl('h3', { text: 'Overview' }); // Title removed as tabs are above
+        
+        // RENDER SECONDARY TABS FIRST
+        this.addSecondaryTabNavigation(containerEl);
         
         // RENDER SUMMARY (Based on secondary tab scope)
         this.addSummarySection(containerEl); // This correctly calculates and renders the summary
         
-        // RENDER SECONDARY TABS
-        this.addSecondaryTabNavigation(containerEl);
 
         // Render content based on the secondary tab
         const overviewContentEl = containerEl.createDiv('overview-content');
@@ -612,7 +624,29 @@ export class StatsView extends ItemView {
      */
     private addSummarySection(containerEl: HTMLElement): void {
         const summarySection = containerEl.createDiv('stats-summary');
-        summarySection.createEl('h3', { text: 'Summary' });
+        // Determine the title based on the secondary tab
+        let summaryTitle = 'Summary';
+        const now = moment();
+        switch (this.currentSecondaryTab) {
+            case SecondaryTab.DAILY:
+                 summaryTitle = `Summary for ${moment(this.selectedDate).format('YYYY-MM-DD')}`;
+                break;
+            case SecondaryTab.MONTHLY:
+                 summaryTitle = `Summary for ${moment(this.selectedDate).format('MMMM YYYY')}`;
+                break;
+            case SecondaryTab.YEARLY:
+                 summaryTitle = `Summary for ${moment(this.selectedDate).format('YYYY')}`;
+                break;
+            case SecondaryTab.CUSTOM:
+                 // Use the main date range description for custom
+                 const rangeDesc = this.dateRange === 'custom' 
+                    ? `${this.customStartDate || 'Start'} to ${this.customEndDate || 'End'}`
+                    : (this.dateRange.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())); // Simple capitalization
+                 summaryTitle = `Summary for ${rangeDesc}`;
+                 if (this.dateRange === 'all-time') summaryTitle = 'Summary for All Time';
+                break;
+        }
+        summarySection.createEl('h3', { text: summaryTitle });
         
         const summaryGrid = summarySection.createDiv('summary-grid');
         
@@ -657,16 +691,16 @@ export class StatsView extends ItemView {
      */
     private renderDailyOverview(containerEl: HTMLElement): void {
         // Summary section is already added by renderOverviewTab
-        containerEl.createEl('h3', { text: 'Daily Details' });
+        // containerEl.createEl('h3', { text: 'Daily Details' }); // Title redundant with summary
+         this.createDaySelector(containerEl); // Add day navigation
         
-        const scopedTransactions = this.getScopedTransactionsForOverview();
+        const scopedTransactions = this.getFilteredTransactionsForCurrentScope(); // Use current scope
 
         // Create container for daily charts
         const chartsContainer = containerEl.createDiv('daily-charts-container');
         
-        // Render recent transactions chart (Adjust to show only the selected day's data?)
-        // Maybe rename renderRecentTransactionsChart or make it more flexible
-        this.renderRecentTransactionsChart(chartsContainer, scopedTransactions); // Pass scoped transactions
+        // Render recent transactions chart (shows only the selected day's data)
+        this.renderSelectedDayChart(chartsContainer, scopedTransactions); // Pass scoped transactions
         
         // Render asset summary (shows current total balances - uses ALL transactions)
         this.renderAssetSummary(chartsContainer);
@@ -680,12 +714,12 @@ export class StatsView extends ItemView {
      */
     private renderMonthlyOverview(containerEl: HTMLElement): void {
         // Summary section is already added by renderOverviewTab
-        containerEl.createEl('h3', { text: 'Monthly Details' });
+        // containerEl.createEl('h3', { text: 'Monthly Details' }); // Title redundant with summary
         
         // Create month selector
         this.createMonthSelector(containerEl);
         
-        const scopedTransactions = this.getScopedTransactionsForOverview(); // Transactions for the selected month
+        const scopedTransactions = this.getFilteredTransactionsForCurrentScope(); // Transactions for the selected month
         
         // Create container for monthly charts
         const chartsContainer = containerEl.createDiv('monthly-charts-container');
@@ -693,7 +727,7 @@ export class StatsView extends ItemView {
         // Render monthly transactions chart
         this.renderMonthlyTransactionsChart(chartsContainer, scopedTransactions);
         
-        // Render asset trend (can be adapted for monthly view - might need more data than just scoped)
+        // Render asset trend for the month
         this.renderAssetTrendChart(chartsContainer, scopedTransactions); // Pass scoped transactions
         
         // Render expense breakdown for the month
@@ -708,12 +742,12 @@ export class StatsView extends ItemView {
      */
     private renderYearlyOverview(containerEl: HTMLElement): void {
          // Summary section is already added by renderOverviewTab
-        containerEl.createEl('h3', { text: 'Yearly Details' });
+        // containerEl.createEl('h3', { text: 'Yearly Details' }); // Title redundant with summary
         
         // Create year selector
         this.createYearSelector(containerEl);
         
-        const scopedTransactions = this.getScopedTransactionsForOverview(); // Transactions for the selected year
+        const scopedTransactions = this.getFilteredTransactionsForCurrentScope(); // Transactions for the selected year
 
         // Create container for yearly charts
         const chartsContainer = containerEl.createDiv('yearly-charts-container');
@@ -724,8 +758,8 @@ export class StatsView extends ItemView {
         // Render yearly heatmap (needs data for the whole year)
         this.renderYearlyHeatmap(chartsContainer, scopedTransactions);
         
-        // Render yearly asset trend (needs data beyond just the year?)
-        this.renderYearlyAssetTrend(chartsContainer, scopedTransactions);
+        // Render yearly asset trend 
+        this.renderAssetTrendChart(chartsContainer, scopedTransactions); // Use same trend chart, now scoped to year
         
         // Render expense breakdown for the year
         this.renderExpenseBreakdownChart(chartsContainer, scopedTransactions);
@@ -739,15 +773,15 @@ export class StatsView extends ItemView {
      */
     private renderCustomOverview(containerEl: HTMLElement): void {
         // Summary section is already added by renderOverviewTab
-        containerEl.createEl('h3', { text: 'Custom Period Details' });
+        // containerEl.createEl('h3', { text: 'Custom Period Details' }); // Title redundant with summary
         
         // Note: Custom date range is already handled by the main filter via getFilteredTransactions
-        const scopedTransactions = this.getScopedTransactionsForOverview(); // Should just be getFilteredTransactions result
+        const scopedTransactions = this.getFilteredTransactionsForCurrentScope(); // Should just be getFilteredTransactions result
         
         // Create container for custom charts
         const chartsContainer = containerEl.createDiv('custom-charts-container');
         
-        // Render custom transactions chart
+        // Render custom transactions chart (e.g., daily breakdown over the custom range)
         this.renderCustomTransactionsChart(chartsContainer, scopedTransactions);
         
         // Render asset trend for the custom period
@@ -761,115 +795,82 @@ export class StatsView extends ItemView {
     }
 
     /**
-     * Render recent transactions chart
+     * Renders a chart showing income/expense for the specifically selected day.
      */
-    private renderRecentTransactionsChart(containerEl: HTMLElement, transactions: Transaction[]): void {
+    private renderSelectedDayChart(containerEl: HTMLElement, transactions: Transaction[]): void {
         const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Recent Transactions (Last 7 Days)' });
-        
-        // Get filtered transactions based on current view scope
-        const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
-        
-        if (filteredTransactions.length === 0) {
-            chartContainer.createEl('p', { text: 'No transactions found for the selected filters.' });
+        chartContainer.createEl('h4', { text: `Activity for ${moment(this.selectedDate).format('MMM D, YYYY')}` });
+
+        if (transactions.length === 0) {
+            chartContainer.createEl('p', { text: 'No transactions found for this day.' });
             return;
         }
-        
-        // Get the last 7 days (or adjust based on scope?)
-        const today = moment();
-        const days: string[] = [];
-        for (let i = 6; i >= 0; i--) {
-            days.push(today.clone().subtract(i, 'days').format('YYYY-MM-DD'));
-        }
-        
-        // Group transactions by day
-        const transactionsByDay: Record<string, { income: number, expense: number }> = {};
-        
-        // Initialize all days with zero values
-        days.forEach(day => {
-            transactionsByDay[day] = { income: 0, expense: 0 };
-        });
-        
-        // Calculate totals for each day (using filtered transactions)
-        filteredTransactions.forEach(transaction => {
-            const dateString = getDatePart(transaction.date); // Use utility function
-                
-            if (days.includes(dateString)) { 
+
+        // Calculate totals for the selected day
+        let dayIncome = 0;
+        let dayExpense = 0;
+        transactions.forEach(transaction => {
+             // Double check date match (although filtering should handle this)
+            if (moment(normalizeTransactionDate(transaction.date)).isSame(this.selectedDate, 'day')) {
                 if (transaction.type === 'income') {
-                    transactionsByDay[dateString].income += transaction.amount;
+                    dayIncome += transaction.amount;
                 } else {
-                    transactionsByDay[dateString].expense += transaction.amount;
+                    dayExpense += transaction.amount;
                 }
             }
         });
+
+        // Basic display of totals for the day
+        const totalsEl = chartContainer.createDiv('day-totals-simple');
+        totalsEl.createEl('p', { text: `Income: ¥${dayIncome.toFixed(2)}` });
+        totalsEl.createEl('p', { text: `Expense: ¥${dayExpense.toFixed(2)}` });
+        totalsEl.createEl('p', { text: `Net: ¥${(dayIncome - dayExpense).toFixed(2)}` });
         
-        // Create chart
-        const chartEl = chartContainer.createDiv({cls: 'recent-transactions-chart'});
-        
-        // Find the maximum value for scaling
-        let maxValue = 0;
-        days.forEach(day => {
-            const dayData = transactionsByDay[day];
-            maxValue = Math.max(maxValue, dayData.income, dayData.expense);
-        });
-        
-        // Add some padding to the max value
-        maxValue = maxValue * 1.1 || 100; // Default to 100 if all values are 0
-        
-        // Create bars for each day
-        days.forEach(day => {
-            const dayData = transactionsByDay[day];
-            
-            // Create day container
-            const dayContainer = chartEl.createDiv({cls: 'day-container'});
-            
-            // Create bars container
-            const barsContainer = dayContainer.createDiv({cls: 'day-bars'});
-            
-            // Income bar
-            const incomeBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const incomeBar = incomeBarWrapper.createDiv({cls: 'income-bar'});
-            const incomeHeight = (dayData.income / maxValue) * 100;
-            incomeBar.style.height = `${incomeHeight}%`;
-            
-            // Add value label
-            if (dayData.income > 0) {
-                const valueLabel = incomeBar.createDiv({cls: 'bar-value'});
-                valueLabel.setText(`¥${dayData.income.toFixed(0)}`);
-            }
-            
-            // Expense bar
-            const expenseBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const expenseBar = expenseBarWrapper.createDiv({cls: 'expense-bar'});
-            const expenseHeight = (dayData.expense / maxValue) * 100;
-            expenseBar.style.height = `${expenseHeight}%`;
-            
-            // Add value label
-            if (dayData.expense > 0) {
-                const valueLabel = expenseBar.createDiv({cls: 'bar-value'});
-                valueLabel.setText(`¥${dayData.expense.toFixed(0)}`);
-            }
-            
-            // Day label
-            const dayLabel = dayContainer.createDiv({cls: 'day-label'});
-            dayLabel.setText(moment(day).format('MM/DD'));
-        });
-        
-        // Add legend
-        const legend = chartContainer.createDiv({cls: 'chart-legend'});
-        
-        const incomeLegend = legend.createDiv({cls: 'legend-item'});
-        const incomeColor = incomeLegend.createDiv({cls: 'legend-color income-color'});
-        incomeLegend.createEl('span', { text: 'Income' });
-        
-        const expenseLegend = legend.createDiv({cls: 'legend-item'});
-        const expenseColor = expenseLegend.createDiv({cls: 'legend-color expense-color'});
-        expenseLegend.createEl('span', { text: 'Expenses' });
+        // Optionally, list the transactions for the day below the totals
+        this.renderTransactionListForDay(chartContainer, transactions);
+    }
+
+    /** Helper to list transactions for the selected day in the Daily Overview */
+    private renderTransactionListForDay(containerEl: HTMLElement, transactions: Transaction[]): void {
+         const listContainer = containerEl.createDiv('day-transaction-list');
+         listContainer.createEl('h5', { text: 'Transactions on this Day' });
+
+         if (transactions.length === 0) {
+             listContainer.createEl('p', { text: 'None.' });
+             return;
+         }
+
+         const table = listContainer.createEl('table', { cls: 'transactions-table compact-transactions-table' });
+         const thead = table.createEl('thead');
+         const headerRow = thead.createEl('tr');
+         const headers = ['Time', 'Desc', 'Cat', 'Acc', 'Amount', 'Type'];
+         headers.forEach(header => headerRow.createEl('th', { text: header }));
+
+         const tbody = table.createEl('tbody');
+         const categories = flattenHierarchy(this.plugin.settings.categories);
+         const accounts = flattenHierarchy(this.plugin.settings.accounts);
+
+         transactions.sort((a, b) => moment(normalizeTransactionDate(a.date)).diff(moment(normalizeTransactionDate(b.date))))
+             .forEach(transaction => {
+                 const row = tbody.createEl('tr');
+                 row.createEl('td', { text: moment(normalizeTransactionDate(transaction.date)).format('HH:mm') });
+                 row.createEl('td', { text: transaction.description || '' });
+                 const category = categories.find(c => c.id === transaction.categoryId);
+                 row.createEl('td', { text: category ? category.name : '?' });
+                 const account = accounts.find(a => a.id === transaction.accountId);
+                 row.createEl('td', { text: account ? account.name : '?' });
+                 const amountCell = row.createEl('td');
+                 amountCell.setText(`¥${transaction.amount.toFixed(2)}`);
+                 amountCell.addClass(transaction.type === 'income' ? 'income-value' : 'expense-value');
+                 const typeCell = row.createEl('td');
+                 typeCell.setText(transaction.type.substring(0, 3));
+                 typeCell.addClass(transaction.type === 'income' ? 'income-type' : 'expense-type');
+             });
     }
     
     private renderAssetSummary(containerEl: HTMLElement): void {
         const summaryContainer = containerEl.createDiv('summary-container');
-        summaryContainer.createEl('h4', { text: 'Asset Summary' });
+        summaryContainer.createEl('h4', { text: 'Asset Summary (Current Balances)' });
         
         // Get all accounts (flattened)
         const accounts = flattenHierarchy(this.plugin.settings.accounts);
@@ -897,7 +898,8 @@ export class StatsView extends ItemView {
             };
         });
         
-        // Calculate balances from ALL transactions
+        // Calculate balances from ALL transactions up to the current moment (or end of selected period?)
+        // Using all transactions gives the *current* snapshot balance.
         this.transactions.forEach(transaction => {
             if (!transaction.accountId) return;
             
@@ -925,7 +927,7 @@ export class StatsView extends ItemView {
         const thead = table.createEl('thead');
         const headerRow = thead.createEl('tr');
         
-        const headers = ['Account', 'Balance', 'Income', 'Expenses', 'Transactions'];
+        const headers = ['Account', 'Balance', 'Total Income', 'Total Expenses', 'Txns']; // Shorten headers
         
         headers.forEach(header => {
             headerRow.createEl('th', { text: header });
@@ -1015,18 +1017,16 @@ export class StatsView extends ItemView {
         
         budgets.forEach(budget => {
             // Calculate spending based on ALL transactions up to now for the budget's period
-            const { start, end } = getPeriodDateRange(budget.period); // Get range for current period
+            const { start, end } = getPeriodDateRange(budget.period); // Get range for *current* period
             const relevantTransactions = this.transactions.filter(t => {
                 const transactionMoment = moment(normalizeTransactionDate(t.date));
-                return transactionMoment.isBetween(start, end, undefined, '[]');
+                // Filter transactions within the budget's current period AND matching the budget's scope
+                 return transactionMoment.isBetween(start, end, undefined, '[]') && 
+                        this.isTransactionInBudgetScope(t, budget);
             });
             
-            const spending = calculateBudgetSpending(
-                budget,
-                relevantTransactions, 
-                this.plugin.settings.categories,
-                this.plugin.settings.tags
-            );
+            const spending = relevantTransactions.reduce((sum, t) => sum + t.amount, 0); // Assuming budget tracks expenses
+
             const percentage = budget.amount > 0 ? (spending / budget.amount) * 100 : 0;
             const scopeName = getScopeName(
                 budget.scope,
@@ -1038,14 +1038,17 @@ export class StatsView extends ItemView {
             );
 
             const budgetItemEl = budgetSection.createDiv('budget-item');
-            // Try using keys directly after uppercasing
+             // Try using keys directly after uppercasing
             const periodKey = budget.period.toUpperCase();
             const scopeKey = budget.scope.toUpperCase();
-            const titleText = `${budget.name || i18n.t('UNNAMED_BUDGET')} (${i18n.t(periodKey as any)} - ${i18n.t(scopeKey as any)}: ${scopeName})`; // Use 'as any' to bypass strict type check for now
+            // Make title shorter if possible
+            const budgetDisplayName = budget.name || i18n.t('UNNAMED_BUDGET');
+            const scopeInfo = `${i18n.t(scopeKey as any)}: ${scopeName}`;
+            const titleText = `${budgetDisplayName} (${i18n.t(periodKey as any)}, ${scopeInfo})`; 
             budgetItemEl.createEl('div', { text: titleText, cls: 'budget-item-title' });
 
             const detailsEl = budgetItemEl.createDiv({ cls: 'budget-item-details' });
-            detailsEl.createSpan({ text: `${i18n.t('AMOUNT')}: ${spending.toFixed(2)} / ${budget.amount.toFixed(2)} (${percentage.toFixed(1)}%)` });
+            detailsEl.createSpan({ text: `${i18n.t('AMOUNT')}: ¥${spending.toFixed(2)} / ¥${budget.amount.toFixed(2)} (${percentage.toFixed(1)}%)` });
 
             const progressBarContainer = budgetItemEl.createDiv({ cls: 'progress-bar-container' });
             const progressBar = progressBarContainer.createDiv({ cls: 'progress-bar' });
@@ -1060,9 +1063,75 @@ export class StatsView extends ItemView {
             }
         });
     }
+
+     /** Helper to check if a transaction matches a budget's scope */
+    private isTransactionInBudgetScope(transaction: Transaction, budget: any): boolean {
+        if (budget.scope === 'all') return true;
+        if (budget.scope === 'account' && transaction.accountId === budget.scopeId) return true;
+        if (budget.scope === 'category' && transaction.categoryId === budget.scopeId) return true;
+        if (budget.scope === 'tag' && transaction.tagIds?.includes(budget.scopeId)) return true;
+        // Add checks for hierarchical scopes if needed later
+        return false;
+    }
+
+    private createDaySelector(containerEl: HTMLElement): void {
+        const selectorContainer = containerEl.createDiv('day-selector-container', el => {
+            el.style.display = 'flex';
+            el.style.justifyContent = 'center';
+            el.style.alignItems = 'center';
+            el.style.margin = '10px 0';
+            el.style.gap = '10px';
+        });
+
+        const currentDayMoment = moment(this.selectedDate);
+
+        // Previous day button
+        const prevDayBtn = selectorContainer.createEl('button', {
+            cls: 'calendar-nav-btn', // Reuse class if style is similar
+            text: '← Prev Day'
+        });
+        prevDayBtn.addEventListener('click', () => {
+            const newDate = currentDayMoment.clone().subtract(1, 'day');
+            this.selectedDate = newDate.format('YYYY-MM-DD');
+            this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
+        });
+
+        // Day display
+        selectorContainer.createEl('span', {
+            cls: 'day-display',
+            text: currentDayMoment.format('ddd, MMM D, YYYY') // Format like "Mon, Jan 1, 2024"
+        });
+
+        // Next day button
+        const nextDayBtn = selectorContainer.createEl('button', {
+            cls: 'calendar-nav-btn',
+            text: 'Next Day →'
+        });
+        nextDayBtn.addEventListener('click', () => {
+            const newDate = currentDayMoment.clone().add(1, 'day');
+            this.selectedDate = newDate.format('YYYY-MM-DD');
+            this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
+        });
+
+        // "Today" button
+        const todayBtn = selectorContainer.createEl('button', {
+            cls: 'calendar-today-button', // Reuse class
+            text: 'Today'
+        });
+        todayBtn.addEventListener('click', () => {
+            this.selectedDate = moment().format('YYYY-MM-DD');
+            this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
+        });
+    }
     
     private createMonthSelector(containerEl: HTMLElement): void {
-        const selectorContainer = containerEl.createDiv('month-selector-container');
+        const selectorContainer = containerEl.createDiv('month-selector-container', el => {
+             el.style.display = 'flex';
+             el.style.justifyContent = 'center';
+             el.style.alignItems = 'center';
+             el.style.margin = '10px 0';
+             el.style.gap = '10px';
+        });
         
         const currentMonthMoment = moment(this.selectedDate); // Use selectedDate as the base
 
@@ -1102,7 +1171,8 @@ export class StatsView extends ItemView {
             text: 'This Month'
         });
         thisMonthBtn.addEventListener('click', () => {
-            this.selectedDate = moment().format('YYYY-MM-DD');
+             // Set day to the 1st of the current month to avoid date issues
+            this.selectedDate = moment().startOf('month').format('YYYY-MM-DD');
             // Re-render the overview tab content only
             this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
         });
@@ -1110,7 +1180,7 @@ export class StatsView extends ItemView {
     
     private renderMonthlyTransactionsChart(containerEl: HTMLElement, transactions: Transaction[]): void {
         const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Daily Activity This Month' });
+        chartContainer.createEl('h4', { text: `Daily Activity - ${moment(this.selectedDate).format('MMMM YYYY')}` });
         
         if (transactions.length === 0) {
             chartContainer.createEl('p', { text: 'No transactions found for this month.' });
@@ -1143,7 +1213,7 @@ export class StatsView extends ItemView {
         });
         
         // Create chart grid (similar to renderRecentTransactionsChart)
-        const chartEl = chartContainer.createDiv({cls: 'recent-transactions-chart monthly-chart'}); // Add specific class
+        const chartEl = chartContainer.createDiv({cls: 'bar-chart-grid monthly-chart'}); // Use a generic class
         
         // Find the maximum value for scaling
         let maxValue = 0;
@@ -1158,13 +1228,13 @@ export class StatsView extends ItemView {
             const dayData = transactionsByDay[day];
             const dayMoment = moment(day);
             
-            const dayContainer = chartEl.createDiv({cls: 'day-container'});
-            const barsContainer = dayContainer.createDiv({cls: 'day-bars'});
+            const dayContainer = chartEl.createDiv({cls: 'bar-item-container'}); // Generic class
+            const barsContainer = dayContainer.createDiv({cls: 'bar-group'}); // Group income/expense
             
             // Income bar
             const incomeBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const incomeBar = incomeBarWrapper.createDiv({cls: 'income-bar'});
-            const incomeHeight = (dayData.income / maxValue) * 100;
+            const incomeBar = incomeBarWrapper.createDiv({cls: 'bar income-bar'});
+            const incomeHeight = maxValue > 0 ? (dayData.income / maxValue) * 100 : 0;
             incomeBar.style.height = `${incomeHeight}%`;
             if (dayData.income > 0) {
                 incomeBar.createDiv({cls: 'bar-value'}).setText(`¥${dayData.income.toFixed(0)}`);
@@ -1172,102 +1242,113 @@ export class StatsView extends ItemView {
             
             // Expense bar
             const expenseBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const expenseBar = expenseBarWrapper.createDiv({cls: 'expense-bar'});
-            const expenseHeight = (dayData.expense / maxValue) * 100;
+            const expenseBar = expenseBarWrapper.createDiv({cls: 'bar expense-bar'});
+            const expenseHeight = maxValue > 0 ? (dayData.expense / maxValue) * 100 : 0;
             expenseBar.style.height = `${expenseHeight}%`;
             if (dayData.expense > 0) {
                 expenseBar.createDiv({cls: 'bar-value'}).setText(`¥${dayData.expense.toFixed(0)}`);
             }
             
             // Day label (e.g., "1", "2", ...)
-            const dayLabel = dayContainer.createDiv({cls: 'day-label'});
+            const dayLabel = dayContainer.createDiv({cls: 'bar-label'});
             dayLabel.setText(dayMoment.format('D'));
         });
         
-        // Add legend (reuse logic or create helper?)
-        const legend = chartContainer.createDiv({cls: 'chart-legend'});
-        const incomeLegend = legend.createDiv({cls: 'legend-item'});
-        incomeLegend.createDiv({cls: 'legend-color income-color'});
-        incomeLegend.createEl('span', { text: 'Income' });
-        const expenseLegend = legend.createDiv({cls: 'legend-item'});
-        expenseLegend.createDiv({cls: 'legend-color expense-color'});
-        expenseLegend.createEl('span', { text: 'Expenses' });
+        // Add legend 
+        this.addIncomeExpenseLegend(chartContainer);
     }
     
     private renderAssetTrendChart(containerEl: HTMLElement, transactions: Transaction[]): void {
         const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Net Change Trend' }); // Changed title to reflect content
+        chartContainer.createEl('h4', { text: 'Net Change Trend' }); 
         
         if (transactions.length === 0) {
             chartContainer.createEl('p', { text: 'No transactions found for this period.' });
             return;
         }
 
-        // Group transactions by day (simplification for now)
-        const transactionsByDay: Record<string, { income: number, expense: number, net: number }> = {};
-        
-        // Get the unique sorted dates from the transactions
-        const uniqueDates = [...new Set(transactions.map(t => getDatePart(t.date)))].sort();
+        // Determine grouping unit based on period duration
+        const startDate = moment.min(transactions.map(t => moment(normalizeTransactionDate(t.date))));
+        const endDate = moment.max(transactions.map(t => moment(normalizeTransactionDate(t.date))));
+        const durationDays = endDate.diff(startDate, 'days');
 
-        uniqueDates.forEach(dateString => {
-            transactionsByDay[dateString] = { income: 0, expense: 0, net: 0 };
+        let groupUnit: moment.unitOfTime.Base = 'day';
+        let timeFormat = 'MM/DD';
+        if (durationDays > 90) { // Rough estimate for yearly+ views
+            groupUnit = 'month';
+            timeFormat = 'MMM YYYY';
+        } else if (durationDays > 31) { // Rough estimate for multi-month views
+             groupUnit = 'week'; // Could also use 'week'
+             timeFormat = 'YYYY [W]WW'; // Format like 2024 W23
+        }
+
+        // Group transactions by the determined unit
+        const transactionsByPeriod: Record<string, { income: number, expense: number, net: number }> = {};
+        
+        // Get the unique sorted periods from the transactions
+        const uniquePeriods = [...new Set(transactions.map(t => 
+            moment(normalizeTransactionDate(t.date)).startOf(groupUnit).format() // Use ISO format as key
+        ))].sort();
+
+        uniquePeriods.forEach(periodKey => {
+            transactionsByPeriod[periodKey] = { income: 0, expense: 0, net: 0 };
         });
         
         transactions.forEach(transaction => {
-            const dateString = getDatePart(transaction.date);
-            if (transactionsByDay[dateString]) {
+            const periodKey = moment(normalizeTransactionDate(transaction.date)).startOf(groupUnit).format();
+            if (transactionsByPeriod[periodKey]) {
                 if (transaction.type === 'income') {
-                    transactionsByDay[dateString].income += transaction.amount;
+                    transactionsByPeriod[periodKey].income += transaction.amount;
                 } else {
-                    transactionsByDay[dateString].expense += transaction.amount;
+                    transactionsByPeriod[periodKey].expense += transaction.amount;
                 }
-                transactionsByDay[dateString].net = transactionsByDay[dateString].income - transactionsByDay[dateString].expense;
+                transactionsByPeriod[periodKey].net = transactionsByPeriod[periodKey].income - transactionsByPeriod[periodKey].expense;
             }
         });
         
         // Create chart grid (using similar bar chart style for now)
-        const chartEl = chartContainer.createDiv({cls: 'recent-transactions-chart asset-trend-chart'}); 
+        const chartEl = chartContainer.createDiv({cls: 'bar-chart-grid asset-trend-chart'}); 
         
         // Find the max absolute net value for scaling
         let maxAbsNetValue = 0;
-        uniqueDates.forEach(date => {
-            maxAbsNetValue = Math.max(maxAbsNetValue, Math.abs(transactionsByDay[date].net));
+        uniquePeriods.forEach(periodKey => {
+            maxAbsNetValue = Math.max(maxAbsNetValue, Math.abs(transactionsByPeriod[periodKey].net));
         });
         maxAbsNetValue = maxAbsNetValue * 1.1 || 100; // Add padding, default 100
         
-        // Create bars for each day
-        uniqueDates.forEach(date => {
-            const dayData = transactionsByDay[date];
+        // Create bars for each period
+        uniquePeriods.forEach(periodKey => {
+            const periodData = transactionsByPeriod[periodKey];
             
-            const dayContainer = chartEl.createDiv({cls: 'day-container'}); // Reuse day container
-            const barsContainer = dayContainer.createDiv({cls: 'day-bars'}); // Single bar container
+            const periodContainer = chartEl.createDiv({cls: 'bar-item-container'}); 
+            const barsContainer = periodContainer.createDiv({cls: 'bar-group'}); // Single bar container needed here?
             
             // Net change bar (positive or negative)
             const netBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper net-bar-wrapper'});
-            const netBar = netBarWrapper.createDiv({cls: `net-bar ${dayData.net >= 0 ? 'positive' : 'negative'}`});
-            const barHeight = (Math.abs(dayData.net) / maxAbsNetValue) * 100;
+            // Set height relative to a baseline (e.g., 50% height for zero) or use absolute positioning.
+            // Simple approach: single bar colored by sign.
+            const netBar = netBarWrapper.createDiv({cls: `bar net-bar ${periodData.net >= 0 ? 'positive' : 'negative'}`});
+            const barHeight = maxAbsNetValue > 0 ? (Math.abs(periodData.net) / maxAbsNetValue) * 100 : 0;
             netBar.style.height = `${barHeight}%`;
-            // Position bar correctly for negative values (e.g. using translateY or adjusting container)
-            // Simple approach: let CSS handle coloring based on positive/negative class
             
-            if (dayData.net !== 0) { // Add value label if not zero
+            if (periodData.net !== 0) { // Add value label if not zero
                  const valueLabel = netBar.createDiv({cls: 'bar-value'});
-                 valueLabel.setText(`¥${dayData.net.toFixed(0)}`);
+                 valueLabel.setText(`¥${periodData.net.toFixed(0)}`);
             }
 
-            // Day label (e.g., MM/DD)
-            const dayLabel = dayContainer.createDiv({cls: 'day-label'});
-            dayLabel.setText(moment(date).format('MM/DD'));
+            // Period label 
+            const periodLabel = periodContainer.createDiv({cls: 'bar-label'});
+            periodLabel.setText(moment(periodKey).format(timeFormat));
         });
         
          // Add legend for Net Change
          const legend = chartContainer.createDiv({cls: 'chart-legend'});
          const positiveLegend = legend.createDiv({cls: 'legend-item'});
          positiveLegend.createDiv({cls: 'legend-color net-positive-color'}); // Need corresponding CSS class
-         positiveLegend.createEl('span', { text: 'Positive Net Change' });
+         positiveLegend.createEl('span', { text: 'Positive Net' });
          const negativeLegend = legend.createDiv({cls: 'legend-item'});
          negativeLegend.createDiv({cls: 'legend-color net-negative-color'}); // Need corresponding CSS class
-         negativeLegend.createEl('span', { text: 'Negative Net Change' });
+         negativeLegend.createEl('span', { text: 'Negative Net' });
     }
     
     private renderExpenseBreakdownChart(containerEl: HTMLElement, transactions: Transaction[]): void {
@@ -1279,14 +1360,14 @@ export class StatsView extends ItemView {
     }
     
     private renderExpenseData(containerEl: HTMLElement, transactions: Transaction[]): void {
-        const dataContainer = containerEl.createDiv('data-container');
-        dataContainer.createEl('h4', { text: 'Expense Data' });
-        
-        // Get filtered transactions for the current scope
-        const filteredTransactions = this.getFilteredTransactionsForCurrentScope().filter(t => t.type === 'expense');
+        const dataContainer = containerEl.createDiv('data-container expense-data-container'); // Add specific class
+        // dataContainer.createEl('h4', { text: 'Expense Data' }); // Title redundant with breakdown chart
+
+        // Get filtered transactions for the current scope, ensure they are expenses
+        const filteredTransactions = transactions.filter(t => t.type === 'expense');
 
         if (filteredTransactions.length === 0) {
-            dataContainer.createEl('p', { text: 'No expense data found for this period.' });
+            // dataContainer.createEl('p', { text: 'No expense data found for this period.' }); // Don't show if breakdown chart is also empty
             return;
         }
         
@@ -1330,11 +1411,17 @@ export class StatsView extends ItemView {
         const totalRow = tfoot.createEl('tr');
         totalRow.createEl('th', { text: 'Total' });
         totalRow.createEl('th', { text: `¥${totalExpenses.toFixed(2)}` });
-        totalRow.createEl('th', { text: '100.0%' });
+        totalRow.createEl('th', { text: totalExpenses > 0 ? '100.0%' : '0.0%' });
     }
     
     private createYearSelector(containerEl: HTMLElement): void {
-        const selectorContainer = containerEl.createDiv('year-selector-container');
+         const selectorContainer = containerEl.createDiv('year-selector-container', el => {
+             el.style.display = 'flex';
+             el.style.justifyContent = 'center';
+             el.style.alignItems = 'center';
+             el.style.margin = '10px 0';
+             el.style.gap = '10px';
+        });
         
         const currentYearMoment = moment(this.selectedDate); // Use selectedDate as the base
 
@@ -1374,10 +1461,8 @@ export class StatsView extends ItemView {
             text: 'This Year'
         });
         thisYearBtn.addEventListener('click', () => {
-            const currentYearDate = moment().format('YYYY');
-            this.selectedDate = moment(this.selectedDate).year(parseInt(currentYearDate)).format('YYYY-MM-DD'); // Keep month/day, just set year
-            // Alternatively, just set to today's date
-            // this.selectedDate = moment().format('YYYY-MM-DD');
+            // Set date to the start of the current year
+            this.selectedDate = moment().startOf('year').format('YYYY-MM-DD');
             // Re-render the overview tab content only
             this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
         });
@@ -1385,7 +1470,7 @@ export class StatsView extends ItemView {
     
     private renderYearlyTransactionsChart(containerEl: HTMLElement, transactions: Transaction[]): void {
         const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Monthly Activity This Year' });
+         chartContainer.createEl('h4', { text: `Monthly Activity - ${moment(this.selectedDate).format('YYYY')}` });
         
         if (transactions.length === 0) {
             chartContainer.createEl('p', { text: 'No transactions found for this year.' });
@@ -1420,7 +1505,7 @@ export class StatsView extends ItemView {
         });
         
         // Create chart grid (similar to monthly/daily charts)
-        const chartEl = chartContainer.createDiv({cls: 'recent-transactions-chart yearly-chart'}); // Add specific class
+        const chartEl = chartContainer.createDiv({cls: 'bar-chart-grid yearly-chart'}); // Add specific class
         
         // Find the maximum value for scaling
         let maxValue = 0;
@@ -1434,13 +1519,13 @@ export class StatsView extends ItemView {
         yearMonths.forEach((monthKey, index) => {
             const monthData = transactionsByMonth[monthKey];
             
-            const monthContainer = chartEl.createDiv({cls: 'day-container month-container'}); // Reuse class?
-            const barsContainer = monthContainer.createDiv({cls: 'day-bars month-bars'});
+            const monthContainer = chartEl.createDiv({cls: 'bar-item-container month-container'}); 
+            const barsContainer = monthContainer.createDiv({cls: 'bar-group month-bars'});
             
             // Income bar
             const incomeBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const incomeBar = incomeBarWrapper.createDiv({cls: 'income-bar'});
-            const incomeHeight = (monthData.income / maxValue) * 100;
+            const incomeBar = incomeBarWrapper.createDiv({cls: 'bar income-bar'});
+            const incomeHeight = maxValue > 0 ? (monthData.income / maxValue) * 100 : 0;
             incomeBar.style.height = `${incomeHeight}%`;
             if (monthData.income > 0) {
                 incomeBar.createDiv({cls: 'bar-value'}).setText(`¥${monthData.income.toFixed(0)}`);
@@ -1448,75 +1533,279 @@ export class StatsView extends ItemView {
             
             // Expense bar
             const expenseBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
-            const expenseBar = expenseBarWrapper.createDiv({cls: 'expense-bar'});
-            const expenseHeight = (monthData.expense / maxValue) * 100;
+            const expenseBar = expenseBarWrapper.createDiv({cls: 'bar expense-bar'});
+            const expenseHeight = maxValue > 0 ? (monthData.expense / maxValue) * 100 : 0;
             expenseBar.style.height = `${expenseHeight}%`;
             if (monthData.expense > 0) {
                 expenseBar.createDiv({cls: 'bar-value'}).setText(`¥${monthData.expense.toFixed(0)}`);
             }
             
             // Month label (e.g., "Jan", "Feb", ...)
-            const monthLabelDiv = monthContainer.createDiv({cls: 'day-label month-label'});
+            const monthLabelDiv = monthContainer.createDiv({cls: 'bar-label month-label'});
             monthLabelDiv.setText(monthLabels[index]);
         });
         
         // Add legend
-        const legend = chartContainer.createDiv({cls: 'chart-legend'});
-        const incomeLegend = legend.createDiv({cls: 'legend-item'});
-        incomeLegend.createDiv({cls: 'legend-color income-color'});
-        incomeLegend.createEl('span', { text: 'Income' });
-        const expenseLegend = legend.createDiv({cls: 'legend-item'});
-        expenseLegend.createDiv({cls: 'legend-color expense-color'});
-        expenseLegend.createEl('span', { text: 'Expenses' });
+        this.addIncomeExpenseLegend(chartContainer);
     }
     
     private renderYearlyHeatmap(containerEl: HTMLElement, transactions: Transaction[]): void {
-        const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Yearly Heatmap' });
+        const chartContainer = containerEl.createDiv('chart-container yearly-heatmap-container');
+        chartContainer.createEl('h4', { text: 'Yearly Activity Heatmap' });
+
+        if (transactions.length === 0) {
+            chartContainer.createEl('p', { text: 'No data for heatmap.' });
+            return;
+        }
+
+        const selectedYearMoment = moment(this.selectedDate);
+        const year = selectedYearMoment.year();
+
+        // Aggregate data by day
+        const dataByDay: Record<string, { income: number, expense: number, net: number }> = {};
+        const yearStart = selectedYearMoment.clone().startOf('year');
+        const yearEnd = selectedYearMoment.clone().endOf('year');
+
+        // Initialize all days of the year
+        let currentDay = yearStart.clone();
+        while (currentDay.isSameOrBefore(yearEnd, 'day')) {
+            dataByDay[currentDay.format('YYYY-MM-DD')] = { income: 0, expense: 0, net: 0 };
+            currentDay.add(1, 'day');
+        }
         
-        // Implementation will be added later
-        chartContainer.createEl('p', { text: 'Yearly heatmap will be displayed here.' });
+        // Fill data from transactions
+        transactions.forEach(t => {
+            const dateStr = getDatePart(t.date);
+            if (dataByDay[dateStr]) {
+                 if (t.type === 'income') {
+                    dataByDay[dateStr].income += t.amount;
+                 } else {
+                    dataByDay[dateStr].expense += t.amount;
+                 }
+                 dataByDay[dateStr].net = dataByDay[dateStr].income - dataByDay[dateStr].expense;
+            }
+        });
+
+        // Find min/max net values for color scaling
+         const netValues = Object.values(dataByDay).map(d => d.net).filter(n => n !== 0); // Exclude zero days for scaling
+         const maxNet = Math.max(0, ...netValues.filter(n => n > 0)); // Max positive net
+         const minNet = Math.min(0, ...netValues.filter(n => n < 0)); // Min negative net (most negative)
+
+        // Create heatmap structure (e.g., using a grid or SVG)
+        // Simple Grid approach:
+        const heatmapGrid = chartContainer.createDiv('heatmap-grid');
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const monthLabels = moment.monthsShort();
+
+        // Add weekday labels
+        const weekdayLabelsContainer = heatmapGrid.createDiv('heatmap-weekdays');
+        weekdayLabelsContainer.createDiv('heatmap-label-spacer'); // Spacer for month column
+        weekdays.forEach(day => weekdayLabelsContainer.createDiv('heatmap-weekday-label', el => el.setText(day.substring(0,1)))); // Single letter
+
+        // Add month columns
+        const heatmapMonthsContainer = heatmapGrid.createDiv('heatmap-months');
+        
+        currentDay = yearStart.clone();
+        let currentMonth = -1;
+        let monthContainer: HTMLElement | null = null;
+
+        while (currentDay.isSameOrBefore(yearEnd, 'day')) {
+            const dayOfWeek = currentDay.day(); // 0 = Sun, 6 = Sat
+            const month = currentDay.month(); // 0 = Jan, 11 = Dec
+
+             // Start new month column if needed
+             if (month !== currentMonth) {
+                currentMonth = month;
+                monthContainer = heatmapMonthsContainer.createDiv('heatmap-month-column');
+                monthContainer.createDiv('heatmap-month-label', el => el.setText(monthLabels[month]));
+                // Add spacer cells for the first week if month doesn't start on Sunday
+                for (let i = 0; i < currentDay.weekday(); i++) {
+                   monthContainer.createDiv('heatmap-day empty');
+                }
+            }
+
+            if (monthContainer) {
+                const dateStr = currentDay.format('YYYY-MM-DD');
+                const dayData = dataByDay[dateStr];
+                const dayCell = monthContainer.createDiv('heatmap-day');
+                dayCell.dataset.date = dateStr;
+                dayCell.dataset.tooltip = `${dateStr}\nIncome: ¥${dayData.income.toFixed(2)}\nExpense: ¥${dayData.expense.toFixed(2)}\nNet: ¥${dayData.net.toFixed(2)}`;
+
+                 // Apply color based on net value
+                 let intensity = 0; // 0 = white/gray (no activity)
+                 if (dayData.net > 0 && maxNet > 0) {
+                     intensity = Math.min(1, dayData.net / maxNet); // Scale from 0 to 1
+                     dayCell.addClass('positive');
+                     // Use HSL: green, lightness based on intensity
+                     dayCell.style.backgroundColor = `hsl(120, 60%, ${90 - intensity * 40}%)`; // Light green to dark green
+                 } else if (dayData.net < 0 && minNet < 0) {
+                     intensity = Math.min(1, dayData.net / minNet); // Scale from 0 to 1 (division by negative minNet)
+                     dayCell.addClass('negative');
+                     // Use HSL: red, lightness based on intensity
+                      dayCell.style.backgroundColor = `hsl(0, 70%, ${90 - intensity * 40}%)`; // Light red to dark red
+                 } else {
+                     dayCell.addClass('zero'); // Style for zero net or no transactions
+                 }
+                 
+                 // Add click listener? Maybe later.
+            }
+
+            currentDay.add(1, 'day');
+        }
+
+        // Add Legend for heatmap
+        const legendContainer = chartContainer.createDiv('heatmap-legend');
+        legendContainer.createSpan({ text: 'Less' });
+        // Negative scale
+        const negScale = legendContainer.createDiv('heatmap-scale negative-scale');
+        for(let i=0; i<=4; i++) negScale.createDiv('heatmap-legend-color', el => el.style.backgroundColor = `hsl(0, 70%, ${90 - (i/4)*40}%)`);
+        // Zero
+         legendContainer.createDiv('heatmap-legend-color zero');
+         // Positive scale
+         const posScale = legendContainer.createDiv('heatmap-scale positive-scale');
+         for(let i=0; i<=4; i++) posScale.createDiv('heatmap-legend-color', el => el.style.backgroundColor = `hsl(120, 60%, ${90 - (i/4)*40}%)`);
+         legendContainer.createSpan({ text: 'More' });
     }
     
-    private renderYearlyAssetTrend(containerEl: HTMLElement, transactions: Transaction[]): void {
-        const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Yearly Asset Trend' });
-        
-        // Implementation will be added later
-        chartContainer.createEl('p', { text: 'Yearly asset trend chart will be displayed here.' });
-    }
+    // Note: Yearly Asset Trend might be identical to renderAssetTrendChart if using 'month' grouping
+    // private renderYearlyAssetTrend(containerEl: HTMLElement, transactions: Transaction[]): void {
+    //     this.renderAssetTrendChart(containerEl, transactions); // Re-use the existing trend chart
+    // }
     
     private createCustomDateRangeSelector(containerEl: HTMLElement): void {
-        const selectorContainer = containerEl.createDiv('custom-date-range-selector-container');
-        
-        // Implementation will be added later
-        selectorContainer.createEl('p', { text: 'Custom date range selector will be displayed here.' });
+        // This is now handled by the main filter controls when 'Custom Range' is selected.
+        // No need for a separate selector here within the Custom Overview tab itself.
+        // We can potentially display the selected custom range here for clarity.
+        const rangeDisplay = containerEl.createDiv('custom-range-display');
+         if (this.dateRange === 'custom' && (this.customStartDate || this.customEndDate)) {
+             rangeDisplay.setText(`Displaying data from ${this.customStartDate || 'start'} to ${this.customEndDate || 'end'}.`);
+             rangeDisplay.style.textAlign = 'center';
+             rangeDisplay.style.margin = '10px 0';
+             rangeDisplay.style.fontStyle = 'italic';
+         } else if (this.dateRange !== 'custom') {
+             // If user somehow got here without custom selected, indicate the active range
+             const rangeDesc = this.dateRange.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+             rangeDisplay.setText(`Displaying data for: ${rangeDesc}`);
+             rangeDisplay.style.textAlign = 'center';
+             rangeDisplay.style.margin = '10px 0';
+             rangeDisplay.style.fontStyle = 'italic';
+         }
     }
     
     private renderCustomTransactionsChart(containerEl: HTMLElement, transactions: Transaction[]): void {
         const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Custom Period Transactions' });
+        chartContainer.createEl('h4', { text: 'Activity Over Custom Period' });
         
-        // Implementation will be added later
-        chartContainer.createEl('p', { text: 'Custom period transactions chart will be displayed here.' });
+        this.createCustomDateRangeSelector(containerEl); // Display the selected range
+
+        if (transactions.length === 0) {
+            chartContainer.createEl('p', { text: 'No transactions found for this period.' });
+            return;
+        }
+        
+        // Determine grouping unit based on period duration
+        const startDate = moment.min(transactions.map(t => moment(normalizeTransactionDate(t.date))));
+        const endDate = moment.max(transactions.map(t => moment(normalizeTransactionDate(t.date))));
+        const durationDays = endDate.diff(startDate, 'days');
+
+        let groupUnit: moment.unitOfTime.Base = 'day';
+        let timeFormat = 'YYYY-MM-DD';
+        if (durationDays > 366) { // Very long range
+            groupUnit = 'month';
+            timeFormat = 'MMM YYYY';
+        } else if (durationDays > 60) { // Multi-month
+             groupUnit = 'week'; 
+             timeFormat = 'YYYY [W]WW'; 
+        } // Default is 'day'
+
+        // Group transactions by the determined unit
+        const transactionsByPeriod: Record<string, { income: number, expense: number }> = {};
+        const uniquePeriods = [...new Set(transactions.map(t => 
+            moment(normalizeTransactionDate(t.date)).startOf(groupUnit).format() 
+        ))].sort();
+
+        uniquePeriods.forEach(periodKey => {
+            transactionsByPeriod[periodKey] = { income: 0, expense: 0 };
+        });
+        
+        transactions.forEach(transaction => {
+            const periodKey = moment(normalizeTransactionDate(transaction.date)).startOf(groupUnit).format();
+            if (transactionsByPeriod[periodKey]) {
+                if (transaction.type === 'income') {
+                    transactionsByPeriod[periodKey].income += transaction.amount;
+                } else {
+                    transactionsByPeriod[periodKey].expense += transaction.amount;
+                }
+            }
+        });
+        
+        // Create chart grid
+        const chartEl = chartContainer.createDiv({cls: 'bar-chart-grid custom-period-chart'});
+        
+        // Find the maximum value for scaling
+        let maxValue = 0;
+        uniquePeriods.forEach(periodKey => {
+            const periodData = transactionsByPeriod[periodKey];
+            maxValue = Math.max(maxValue, periodData.income, periodData.expense);
+        });
+        maxValue = maxValue * 1.1 || 100; 
+        
+        // Create bars for each period
+        uniquePeriods.forEach(periodKey => {
+            const periodData = transactionsByPeriod[periodKey];
+            
+            const periodContainer = chartEl.createDiv({cls: 'bar-item-container'});
+            const barsContainer = periodContainer.createDiv({cls: 'bar-group'});
+            
+            // Income bar
+            const incomeBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
+            const incomeBar = incomeBarWrapper.createDiv({cls: 'bar income-bar'});
+            const incomeHeight = maxValue > 0 ? (periodData.income / maxValue) * 100 : 0;
+            incomeBar.style.height = `${incomeHeight}%`;
+            if (periodData.income > 0) {
+                incomeBar.createDiv({cls: 'bar-value'}).setText(`¥${periodData.income.toFixed(0)}`);
+            }
+            
+            // Expense bar
+            const expenseBarWrapper = barsContainer.createDiv({cls: 'bar-wrapper'});
+            const expenseBar = expenseBarWrapper.createDiv({cls: 'bar expense-bar'});
+            const expenseHeight = maxValue > 0 ? (periodData.expense / maxValue) * 100 : 0;
+            expenseBar.style.height = `${expenseHeight}%`;
+            if (periodData.expense > 0) {
+                expenseBar.createDiv({cls: 'bar-value'}).setText(`¥${periodData.expense.toFixed(0)}`);
+            }
+            
+            // Period label
+            const periodLabelDiv = periodContainer.createDiv({cls: 'bar-label'});
+            periodLabelDiv.setText(moment(periodKey).format(timeFormat));
+        });
+        
+        // Add legend
+         this.addIncomeExpenseLegend(chartContainer);
     }
 
     /**
      * Render the Transactions tab
      */
     private renderTransactionsTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'All Transactions' });
+        // containerEl.createEl('h3', { text: 'Transactions' }); // Title redundant
 
         // Use the main filter controls (already added)
         const filteredTransactions = this.getFilteredTransactionsForCurrentScope(); // Use the scoped filter
+
+         // Add Summary for the filtered transactions
+         this.addSummarySection(containerEl); // Show summary based on applied filters
 
         if (filteredTransactions.length === 0) {
             containerEl.createEl('p', { text: 'No transactions found matching the selected filters.' });
             return;
         }
 
+        // Create table container for scrolling if needed
+         const tableContainer = containerEl.createDiv('transactions-table-container');
+
         // Create table
-        const table = containerEl.createEl('table', { cls: 'transactions-table full-transactions-table' });
+        const table = tableContainer.createEl('table', { cls: 'transactions-table full-transactions-table' });
         const thead = table.createEl('thead');
         const headerRow = thead.createEl('tr');
         const headers = ['Date', 'Description', 'Category', 'Account', 'Tags', 'Amount', 'Type'];
@@ -1569,10 +1858,16 @@ export class StatsView extends ItemView {
      * Render the Calendar tab
      */
     private renderCalendarTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Transaction Calendar' });
+        // containerEl.createEl('h3', { text: 'Transaction Calendar' }); // Title redundant
         
         // Create month selector
-        const selectorContainer = containerEl.createDiv('calendar-selector-container');
+        const selectorContainer = containerEl.createDiv('calendar-selector-container', el => {
+             el.style.display = 'flex';
+             el.style.justifyContent = 'center';
+             el.style.alignItems = 'center';
+             el.style.margin = '10px 0';
+             el.style.gap = '10px';
+        });
         
         // Get current month and year from selectedDate
         const currentDate = moment(this.selectedDate);
@@ -1580,7 +1875,11 @@ export class StatsView extends ItemView {
         const currentYear = currentDate.year();
         
         // Create month/year selector
-        const monthYearSelector = selectorContainer.createDiv('month-year-selector');
+        const monthYearSelector = selectorContainer.createDiv('month-year-selector', el => {
+             el.style.display = 'flex';
+             el.style.alignItems = 'center';
+             el.style.gap = '5px';
+        });
         
         // Previous month button
         const prevMonthBtn = monthYearSelector.createEl('button', { 
@@ -1592,7 +1891,7 @@ export class StatsView extends ItemView {
             const newDate = moment(this.selectedDate).subtract(1, 'month');
             this.selectedDate = newDate.format('YYYY-MM-DD');
             // Re-render the calendar tab content only
-            this.rerenderCurrentTabContent(containerEl);
+            this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
         });
         
         // Month/year display
@@ -1611,7 +1910,7 @@ export class StatsView extends ItemView {
             const newDate = moment(this.selectedDate).add(1, 'month');
             this.selectedDate = newDate.format('YYYY-MM-DD');
              // Re-render the calendar tab content only
-             this.rerenderCurrentTabContent(containerEl);
+             this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
         });
         
         // Today button
@@ -1623,7 +1922,7 @@ export class StatsView extends ItemView {
         todayBtn.addEventListener('click', () => {
             this.selectedDate = moment().format('YYYY-MM-DD');
             // Re-render the calendar tab content only
-            this.rerenderCurrentTabContent(containerEl);
+            this.rerenderCurrentTabContent(this.contentEl.querySelector('.tab-content') as HTMLElement);
         });
         
         // Create calendar container
@@ -1651,14 +1950,34 @@ export class StatsView extends ItemView {
             calendarGrid.createDiv({cls: 'calendar-day empty'});
         }
         
-        // Get filtered transactions for the month (using the main filters as well)
-        const monthStart = moment([currentYear, currentMonth, 1]).format('YYYY-MM-DD');
-        const monthEnd = moment([currentYear, currentMonth, daysInMonth]).format('YYYY-MM-DD');
+        // Get ALL transactions for the selected month, respecting main filters (Type, Account, Category)
+        const monthStart = moment([currentYear, currentMonth, 1]).startOf('day');
+        const monthEnd = moment([currentYear, currentMonth, daysInMonth]).endOf('day');
         
-        // Use the main filtered transactions, then filter by month
-        const monthTransactions = this.getFilteredTransactionsForCurrentScope().filter(transaction => {
-            const dateString = getDatePart(transaction.date); // Use utility function
-            return dateString >= monthStart && dateString <= monthEnd;
+        const monthTransactions = this.transactions.filter(transaction => {
+            const transactionMoment = moment(normalizeTransactionDate(transaction.date));
+            
+             // Check if within the month
+             if (!transactionMoment.isBetween(monthStart, monthEnd, undefined, '[]')) {
+                 return false;
+             }
+            
+            // Filter by type (respect main filter)
+            if (this.selectedType !== 'all' && transaction.type !== this.selectedType) {
+                return false;
+            }
+
+            // Filter by account (respect main filter)
+            if (this.selectedAccountId !== 'all' && transaction.accountId !== this.selectedAccountId) {
+                return false;
+            }
+
+            // Filter by category (respect main filter)
+            if (this.selectedCategoryId !== 'all' && transaction.categoryId !== this.selectedCategoryId) {
+                return false;
+            }
+            
+            return true;
         });
         
         // Group transactions by day
@@ -1708,8 +2027,8 @@ export class StatsView extends ItemView {
                 const transactionSummary = dayCell.createDiv('day-transaction-summary');
                 
                 // Transaction count
-                const transactionCountEl = transactionSummary.createDiv('transaction-count');
-                transactionCountEl.setText(`${dayTransactions.length} txn${dayTransactions.length > 1 ? 's' : ''}`);
+                // const transactionCountEl = transactionSummary.createDiv('transaction-count');
+                // transactionCountEl.setText(`${dayTransactions.length} txn${dayTransactions.length > 1 ? 's' : ''}`);
                 
                 // Income
                 if (dayIncome > 0) {
@@ -1724,16 +2043,16 @@ export class StatsView extends ItemView {
                 }
                 
                 // Balance (Optional, can make it cluttered)
-                // const balanceEl = transactionSummary.createDiv(`day-balance ${dayBalance >= 0 ? 'positive' : 'negative'}`);
-                // balanceEl.setText(`¥${dayBalance.toFixed(2)}`);
+                 // const balanceEl = transactionSummary.createDiv(`day-balance ${dayBalance >= 0 ? 'positive' : 'negative'}`);
+                 // balanceEl.setText(`Net: ¥${dayBalance.toFixed(0)}`);
                 
                 // Make the day clickable to show transactions
                 dayCell.addClass('has-transactions');
                 dayCell.addEventListener('click', () => {
                     // Remove any existing day-details container first
-                    const existingDetails = containerEl.querySelector('.day-transactions-container');
+                    const existingDetails = containerEl.querySelector('.day-transactions-popup'); // Changed selector
                     if (existingDetails) existingDetails.remove();
-                    this.showDayTransactions(containerEl, dateString, dayTransactions);
+                    this.showDayTransactionsPopup(containerEl, dateString, dayTransactions); // Use popup function
                 });
             }
         }
@@ -1748,20 +2067,56 @@ export class StatsView extends ItemView {
     }
     
     /**
-     * Show transactions for a specific day (appends to the calendar view)
+     * Show transactions for a specific day in a popup/modal style relative to the calendar.
      */
-    private showDayTransactions(calendarContainerEl: HTMLElement, dateString: string, transactions: Transaction[]): void {
-        // Create transactions container that floats or appears below
-        const transactionsContainer = calendarContainerEl.createDiv('day-transactions-container');
-        transactionsContainer.style.marginTop = '10px'; // Add some space
+    private showDayTransactionsPopup(calendarTabEl: HTMLElement, dateString: string, transactions: Transaction[]): void {
+        // Create popup container
+        const popupContainer = calendarTabEl.createDiv('day-transactions-popup');
+        // Basic styling for popup effect (can be enhanced with CSS)
+        popupContainer.style.position = 'absolute'; // Position relative to calendarTabEl or viewport
+        popupContainer.style.border = '1px solid var(--background-modifier-border)';
+        popupContainer.style.padding = '15px';
+        popupContainer.style.backgroundColor = 'var(--background-secondary)';
+        popupContainer.style.borderRadius = '8px';
+        popupContainer.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        popupContainer.style.zIndex = '10'; // Ensure it's above the calendar grid
+        popupContainer.style.maxHeight = '300px'; // Limit height
+        popupContainer.style.overflowY = 'auto'; // Make content scrollable
+        popupContainer.style.minWidth = '350px'; // Minimum width
+
+        // Position the popup (simple example: center or near the clicked element)
+        // Centering requires knowing viewport size; positioning near element is complex.
+        // Let's position it fixed top-center for simplicity.
+        popupContainer.style.left = '50%';
+        popupContainer.style.top = '15%'; // Adjust as needed
+        popupContainer.style.transform = 'translateX(-50%)';
         
         // Add header
-        transactionsContainer.createEl('h4', { 
+        const header = popupContainer.createDiv('popup-header');
+        header.createEl('h4', { 
             text: `Transactions for ${moment(dateString).format('MMMM D, YYYY')}` 
         });
         
+         // Add close button to header
+         const closeButton = header.createEl('button', {
+             cls: 'popup-close-button',
+             text: '✕' // Simple 'X' close symbol
+         });
+         closeButton.style.position = 'absolute';
+         closeButton.style.top = '5px';
+         closeButton.style.right = '10px';
+         closeButton.style.background = 'none';
+         closeButton.style.border = 'none';
+         closeButton.style.fontSize = '1.2em';
+         closeButton.style.cursor = 'pointer';
+         
+         closeButton.addEventListener('click', (e) => {
+             e.stopPropagation(); // Prevent triggering day click again
+             popupContainer.remove();
+         });
+
         // Create table
-        const table = transactionsContainer.createEl('table', { cls: 'transactions-table compact-transactions-table' });
+        const table = popupContainer.createEl('table', { cls: 'transactions-table compact-transactions-table' });
         
         // Table header
         const thead = table.createEl('thead');
@@ -1778,9 +2133,7 @@ export class StatsView extends ItemView {
         
         // Sort transactions by time
         const sortedTransactions = [...transactions].sort((a, b) => {
-            const timeA = a.date.includes(' ') ? a.date.split(' ')[1] : '00:00';
-            const timeB = b.date.includes(' ') ? b.date.split(' ')[1] : '00:00';
-            return timeA.localeCompare(timeB);
+             return moment(normalizeTransactionDate(a.date)).diff(moment(normalizeTransactionDate(b.date)));
         });
         
         const categories = flattenHierarchy(this.plugin.settings.categories);
@@ -1792,7 +2145,7 @@ export class StatsView extends ItemView {
             const row = tbody.createEl('tr');
             
             // Time
-            const time = transaction.date.includes(' ') ? transaction.date.split(' ')[1] : '--:--';
+             const time = moment(normalizeTransactionDate(transaction.date)).format('HH:mm');
             row.createEl('td', { text: time });
             
             // Description (truncated maybe?)
@@ -1824,22 +2177,17 @@ export class StatsView extends ItemView {
             typeCell.addClass(transaction.type === 'income' ? 'income-type' : 'expense-type');
         });
         
-        // Add close button
-        const closeButton = transactionsContainer.createEl('button', {
-            cls: 'close-day-transactions',
-            text: 'Close'
-        });
-        
-        closeButton.addEventListener('click', () => {
-            transactionsContainer.remove();
-        });
+        // Optional: Add click outside to close
+         // This requires a global listener, might be complex to manage correctly here.
+         // Sticking with explicit close button for now.
     }
+
 
     /**
      * Render the Accounts tab
      */
     private renderAccountsTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Accounts' });
+        // containerEl.createEl('h3', { text: 'Accounts' }); // Title redundant
         
         // Get all accounts
         const accounts = this.plugin.settings.accounts;
@@ -1902,8 +2250,7 @@ export class StatsView extends ItemView {
         const accountRow = accountItem.createDiv('account-row');
         accountRow.style.paddingLeft = `${level * 15}px`; // Indentation based on level
         
-        // Calculate account balance (consider including children?)
-        // For now, show balance of the account itself
+        // Calculate account balance (only for this specific account)
         let balance = 0;
         this.transactions.forEach(transaction => {
             if (transaction.accountId === account.id) {
@@ -1931,6 +2278,9 @@ export class StatsView extends ItemView {
                     }
                 }
             });
+        } else {
+             // Add spacer if no children, for alignment
+             accountRow.createSpan({ cls: 'account-toggle-spacer' });
         }
         
         // Account name and balance
@@ -1944,7 +2294,7 @@ export class StatsView extends ItemView {
         accountRow.addEventListener('click', (e) => {
             e.stopPropagation();
             this.setActiveAccountRow(accountRow);
-            this.showAccountDetails(account);
+            this.showAccountDetails(account, allAccounts); // Pass allAccounts for calculating total balance
         });
         
         // Render children recursively if they exist
@@ -1957,14 +2307,21 @@ export class StatsView extends ItemView {
 
     /** Helper to manage active state for account rows */
     private setActiveAccountRow(rowElement: HTMLElement): void {
-        this.contentEl.querySelectorAll('.account-row.active').forEach(el => el.removeClass('active'));
+         // Find the closest ancestor that holds the account list to scope the query
+         const treeContainer = rowElement.closest('.accounts-tree-container');
+         if (treeContainer) {
+             treeContainer.querySelectorAll('.account-row.active').forEach(el => el.removeClass('active'));
+         } else {
+             // Fallback if container not found (shouldn't happen often)
+             this.contentEl.querySelectorAll('.account-row.active').forEach(el => el.removeClass('active'));
+         }
         rowElement.addClass('active');
     }
     
     /**
-     * Show account details
+     * Show account details, including balance rollup from children.
      */
-    private showAccountDetails(account: Account): void {
+    private showAccountDetails(account: Account, allAccounts: Account[]): void {
         // Get account details container
         const detailsContainer = this.contentEl.querySelector('.account-details-container') as HTMLElement;
         
@@ -1976,113 +2333,150 @@ export class StatsView extends ItemView {
         // Add header
         detailsContainer.createEl('h4', { text: `Account: ${account.name}` });
         
-        // Filter transactions for this account (and potentially its children?)
-        // For now, just this account.
-        const accountTransactions = this.transactions.filter(transaction => 
-            transaction.accountId === account.id
+        // Find all child account IDs recursively
+         const childAccountIds = this.getChildAccountIds(account.id, allAccounts);
+         const allRelevantAccountIds = [account.id, ...childAccountIds];
+
+        // Filter transactions for this account AND its children
+        const accountAndChildrenTransactions = this.transactions.filter(transaction => 
+            transaction.accountId && allRelevantAccountIds.includes(transaction.accountId)
+        );
+
+        // Filter transactions only for this specific account (for recent list)
+        const accountOnlyTransactions = this.transactions.filter(transaction => 
+             transaction.accountId === account.id
         );
         
-        // Calculate totals
-        const totals = this.calculateTotals(accountTransactions);
-        const balance = totals.balance;
+        // Calculate totals (rollup)
+        const totalsRollup = this.calculateTotals(accountAndChildrenTransactions);
+        const balanceRollup = totalsRollup.balance;
         
+        // Calculate balance for only this account
+        const balanceDirect = this.calculateTotals(accountOnlyTransactions).balance;
+
         // Create summary section
         const summarySection = detailsContainer.createDiv('account-summary');
-        const summaryGrid = summarySection.createDiv('summary-grid');
+        const summaryGrid = summarySection.createDiv('summary-grid'); // Reuse grid styling
         
-        // Income card
-        const incomeCard = summaryGrid.createDiv('summary-card income-card');
-        incomeCard.createEl('h5', { text: 'Income' });
-        incomeCard.createDiv('summary-value').setText(`¥${totals.income.toFixed(2)}`);
+        // Direct Balance card
+         const directBalanceCard = summaryGrid.createDiv('summary-card balance-card');
+         directBalanceCard.createEl('h5', { text: 'Direct Balance' });
+         const directBalanceValue = directBalanceCard.createDiv('summary-value');
+         directBalanceValue.setText(`¥${balanceDirect.toFixed(2)}`);
+         directBalanceValue.addClass(balanceDirect >= 0 ? 'positive' : 'negative');
+         
+        // Total Rollup Balance card
+        const rollupBalanceCard = summaryGrid.createDiv('summary-card balance-card');
+        rollupBalanceCard.createEl('h5', { text: 'Total Balance (with Children)' });
+        const rollupBalanceValue = rollupBalanceCard.createDiv('summary-value');
+        rollupBalanceValue.setText(`¥${balanceRollup.toFixed(2)}`);
+        rollupBalanceValue.addClass(balanceRollup >= 0 ? 'positive' : 'negative');
         
-        // Expense card
-        const expenseCard = summaryGrid.createDiv('summary-card expense-card');
-        expenseCard.createEl('h5', { text: 'Expenses' });
-        expenseCard.createDiv('summary-value').setText(`¥${totals.expenses.toFixed(2)}`);
-        
-        // Balance card
-        const balanceCard = summaryGrid.createDiv('summary-card balance-card');
-        balanceCard.createEl('h5', { text: 'Balance' });
-        const balanceValue = balanceCard.createDiv('summary-value');
-        balanceValue.setText(`¥${balance.toFixed(2)}`);
-        balanceValue.addClass(balance >= 0 ? 'positive' : 'negative');
-        
-        // Transaction count card
-        const countCard = summaryGrid.createDiv('summary-card count-card');
-        countCard.createEl('h5', { text: 'Transactions' });
-        countCard.createDiv('summary-value').setText(accountTransactions.length.toString());
-        
-        // If no transactions, show message
-        if (accountTransactions.length === 0) {
-            detailsContainer.createEl('p', { text: 'No transactions found for this account.' });
-            return;
-        }
-        
-        // Create transactions section
-        const transactionsSection = detailsContainer.createDiv('account-transactions');
-        transactionsSection.createEl('h5', { text: 'Recent Transactions' });
-        
-        // Create table
-        const table = transactionsSection.createEl('table', { cls: 'transactions-table compact-transactions-table' });
-        const thead = table.createEl('thead');
-        const headerRow = thead.createEl('tr');
-        const headers = ['Date', 'Desc', 'Cat', 'Amount', 'Type']; // Compact view
-        headers.forEach(header => headerRow.createEl('th', { text: header }));
-        
-        const tbody = table.createEl('tbody');
-        const categories = flattenHierarchy(this.plugin.settings.categories);
+        // Transaction count card (Direct)
+        const countCardDirect = summaryGrid.createDiv('summary-card count-card');
+        countCardDirect.createEl('h5', { text: 'Direct Transactions' });
+        countCardDirect.createDiv('summary-value').setText(accountOnlyTransactions.length.toString());
 
-        // Sort transactions by date (newest first)
-        const sortedTransactions = [...accountTransactions].sort((a, b) => 
-            moment(normalizeTransactionDate(b.date)).diff(moment(normalizeTransactionDate(a.date)))
-        );
+        // Transaction count card (Rollup)
+        const countCardRollup = summaryGrid.createDiv('summary-card count-card');
+        countCardRollup.createEl('h5', { text: 'Total Transactions (with Children)' });
+        countCardRollup.createDiv('summary-value').setText(accountAndChildrenTransactions.length.toString());
         
-        // Show only the 10 most recent transactions
-        const recentTransactions = sortedTransactions.slice(0, 10);
         
-        // Add rows for each transaction
-        recentTransactions.forEach(transaction => {
-            const row = tbody.createEl('tr');
-            
-            // Date
-            const dateString = getDatePart(transaction.date); // Use utility function
-            row.createEl('td', { text: moment(dateString).format('YYYY-MM-DD') });
-            
-            // Description
-            row.createEl('td', { text: transaction.description || '' });
-            
-            // Category
-            const category = categories.find(c => c.id === transaction.categoryId);
-            row.createEl('td', { text: category ? category.name : '?' });
-            
-            // Amount
-            const amountCell = row.createEl('td');
-            amountCell.setText(`¥${transaction.amount.toFixed(2)}`);
-            amountCell.addClass(transaction.type === 'income' ? 'income-value' : 'expense-value');
-            
-            // Type
-            const typeCell = row.createEl('td');
-            typeCell.setText(transaction.type.substring(0,3)); // Shorten
-            typeCell.addClass(transaction.type === 'income' ? 'income-type' : 'expense-type');
-        });
-        
-        // Add "View All" button if there are more than 10 transactions
-        if (accountTransactions.length > 10) {
-            const viewAllButton = transactionsSection.createEl('button', {
-                cls: 'view-all-button',
-                text: `View All (${accountTransactions.length})`
-            });
-            
-            viewAllButton.addEventListener('click', () => {
-                this.showAllAccountTransactions(account, accountTransactions);
-            });
+        // If no direct transactions, show message
+        if (accountOnlyTransactions.length === 0) {
+            detailsContainer.createEl('p', { text: 'No direct transactions found for this account.' });
+            // Still show children transactions if they exist
+        } else {
+             // Create transactions section for DIRECT transactions
+             const transactionsSection = detailsContainer.createDiv('account-transactions');
+             transactionsSection.createEl('h5', { text: 'Recent Direct Transactions' });
+             
+             // Create table
+             const table = transactionsSection.createEl('table', { cls: 'transactions-table compact-transactions-table' });
+             const thead = table.createEl('thead');
+             const headerRow = thead.createEl('tr');
+             const headers = ['Date', 'Desc', 'Cat', 'Amount', 'Type']; // Compact view
+             headers.forEach(header => headerRow.createEl('th', { text: header }));
+             
+             const tbody = table.createEl('tbody');
+             const categories = flattenHierarchy(this.plugin.settings.categories);
+     
+             // Sort transactions by date (newest first)
+             const sortedTransactions = [...accountOnlyTransactions].sort((a, b) => 
+                 moment(normalizeTransactionDate(b.date)).diff(moment(normalizeTransactionDate(a.date)))
+             );
+             
+             // Show only the 10 most recent transactions
+             const recentTransactions = sortedTransactions.slice(0, 10);
+             
+             // Add rows for each transaction
+             recentTransactions.forEach(transaction => {
+                 const row = tbody.createEl('tr');
+                 
+                 // Date
+                 const dateString = getDatePart(transaction.date); // Use utility function
+                 row.createEl('td', { text: moment(dateString).format('YYYY-MM-DD') });
+                 
+                 // Description
+                 row.createEl('td', { text: transaction.description || '' });
+                 
+                 // Category
+                 const category = categories.find(c => c.id === transaction.categoryId);
+                 row.createEl('td', { text: category ? category.name : '?' });
+                 
+                 // Amount
+                 const amountCell = row.createEl('td');
+                 amountCell.setText(`¥${transaction.amount.toFixed(2)}`);
+                 amountCell.addClass(transaction.type === 'income' ? 'income-value' : 'expense-value');
+                 
+                 // Type
+                 const typeCell = row.createEl('td');
+                 typeCell.setText(transaction.type.substring(0,3)); // Shorten
+                 typeCell.addClass(transaction.type === 'income' ? 'income-type' : 'expense-type');
+             });
+             
+             // Add "View All" button if there are more than 10 transactions
+             if (accountOnlyTransactions.length > 10) {
+                 const viewAllButton = transactionsSection.createEl('button', {
+                     cls: 'view-all-button',
+                     text: `View All Direct (${accountOnlyTransactions.length})`
+                 });
+                 
+                 viewAllButton.addEventListener('click', () => {
+                      // Pass only direct transactions to the "show all" view
+                     this.showAllAccountTransactions(account, accountOnlyTransactions, allAccounts);
+                 });
+             }
         }
+
+         // Add button to view Rollup transactions if children exist and have transactions
+         if (childAccountIds.length > 0 && accountAndChildrenTransactions.length > accountOnlyTransactions.length) {
+             const viewRollupButton = detailsContainer.createEl('button', {
+                 cls: 'view-rollup-button',
+                  text: `View All Total Transactions (${accountAndChildrenTransactions.length})`
+             });
+             viewRollupButton.addEventListener('click', () => {
+                  // Pass rollup transactions to the "show all" view
+                 this.showAllAccountTransactions(account, accountAndChildrenTransactions, allAccounts, true); // Add flag indicating rollup view
+             });
+         }
+    }
+
+    /** Helper to recursively get all child account IDs */
+     private getChildAccountIds(parentId: string, allAccounts: Account[]): string[] {
+        const children = allAccounts.filter(a => a.parentId === parentId);
+        let childIds: string[] = children.map(a => a.id);
+        children.forEach(child => {
+            childIds = childIds.concat(this.getChildAccountIds(child.id, allAccounts));
+        });
+        return childIds;
     }
     
     /**
-     * Show all transactions for an account
+     * Show all transactions for an account (either direct or rollup).
      */
-    private showAllAccountTransactions(account: Account, transactions: Transaction[]): void {
+    private showAllAccountTransactions(account: Account, transactions: Transaction[], allAccounts: Account[], isRollupView: boolean = false): void {
         // Get account details container
         const detailsContainer = this.contentEl.querySelector('.account-details-container') as HTMLElement;
         
@@ -2092,7 +2486,10 @@ export class StatsView extends ItemView {
         detailsContainer.empty();
         
         // Add header
-        detailsContainer.createEl('h4', { text: `All Transactions: ${account.name}` });
+         const headerText = isRollupView 
+             ? `All Transactions (Includes Children): ${account.name}`
+             : `All Direct Transactions: ${account.name}`;
+        detailsContainer.createEl('h4', { text: headerText });
         
         // Add back button
         const backButton = detailsContainer.createEl('button', {
@@ -2104,7 +2501,7 @@ export class StatsView extends ItemView {
             // Reselect the row and show details again
             const accountRow = this.contentEl.querySelector(`.account-item[data-account-id="${account.id}"] .account-row`) as HTMLElement;
             if (accountRow) this.setActiveAccountRow(accountRow);
-            this.showAccountDetails(account);
+            this.showAccountDetails(account, allAccounts); // Pass allAccounts back
         });
         
         // Create transactions section
@@ -2117,13 +2514,17 @@ export class StatsView extends ItemView {
         const thead = table.createEl('thead');
         const headerRow = thead.createEl('tr');
         
-        const headers = ['Date', 'Description', 'Category', 'Tags', 'Amount', 'Type'];
+         // Add 'Account' column only if it's a rollup view
+         const headers = isRollupView 
+             ? ['Date', 'Description', 'Category', 'Account', 'Tags', 'Amount', 'Type'] 
+             : ['Date', 'Description', 'Category', 'Tags', 'Amount', 'Type'];
         headers.forEach(header => headerRow.createEl('th', { text: header }));
         
         // Table body
         const tbody = table.createEl('tbody');
         const categories = flattenHierarchy(this.plugin.settings.categories);
         const tags = flattenHierarchy(this.plugin.settings.tags);
+         const accountsMap = new Map(flattenHierarchy(allAccounts).map(a => [a.id, a.name])); // Map for quick lookup if needed
         
         // Sort transactions by date (newest first)
         const sortedTransactions = [...transactions].sort((a, b) => 
@@ -2135,8 +2536,8 @@ export class StatsView extends ItemView {
             const row = tbody.createEl('tr');
             
             // Date
-            const dateString = getDatePart(transaction.date); // Use utility function
-            row.createEl('td', { text: moment(dateString).format('YYYY-MM-DD HH:mm') }); // Show time too
+             const dateString = normalizeTransactionDate(transaction.date);
+             row.createEl('td', { text: moment(dateString).format('YYYY-MM-DD HH:mm') }); // Show time too
             
             // Description
             row.createEl('td', { text: transaction.description || '' });
@@ -2144,6 +2545,12 @@ export class StatsView extends ItemView {
             // Category
             const category = categories.find(c => c.id === transaction.categoryId);
             row.createEl('td', { text: category ? category.name : '?' });
+
+             // Account (only if rollup view)
+             if (isRollupView) {
+                 const accountName = transaction.accountId ? accountsMap.get(transaction.accountId) : '?';
+                 row.createEl('td', { text: accountName });
+             }
             
             // Tags
              const tagNames = (transaction.tagIds || [])
@@ -2168,10 +2575,16 @@ export class StatsView extends ItemView {
      * Render the Trends tab
      */
     private renderTrendsTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Financial Trends' });
+        // containerEl.createEl('h3', { text: 'Financial Trends' }); // Title redundant
         
         // Create period selector
-        const periodSelector = containerEl.createDiv('trends-period-selector');
+        const periodSelector = containerEl.createDiv('trends-period-selector', el => {
+             // Style similar to main tabs
+             el.style.display = 'flex';
+             el.style.flexWrap = 'wrap';
+             el.style.gap = '5px';
+             el.style.marginBottom = '15px'; // Space below tabs
+        });
         
         // Create period tabs
         const periodTabs = [
@@ -2180,19 +2593,19 @@ export class StatsView extends ItemView {
             { id: 'category', label: 'Category Trends' }
         ];
         
-        // Current period
-        let currentPeriod = 'monthly';
+        // Current period (consider storing this as a class property if needed elsewhere)
+        let currentTrendPeriod = 'monthly'; // Default
         
         // Create tabs
         periodTabs.forEach(tab => {
             const tabEl = periodSelector.createEl('button', {
-                cls: ['trends-period-tab', tab.id === currentPeriod ? 'active' : ''],
+                cls: ['trends-period-tab', tab.id === currentTrendPeriod ? 'active' : ''],
                 text: tab.label
             });
             
             tabEl.addEventListener('click', () => {
                 // Update current period
-                currentPeriod = tab.id;
+                currentTrendPeriod = tab.id;
                 
                 // Remove active class from all tabs
                 periodSelector.querySelectorAll('.trends-period-tab').forEach(el => {
@@ -2206,18 +2619,18 @@ export class StatsView extends ItemView {
                 trendsContainer.empty();
                 
                 // Render appropriate trend
-                if (currentPeriod === 'monthly') {
+                if (currentTrendPeriod === 'monthly') {
                     this.renderMonthlyTrends(trendsContainer);
-                } else if (currentPeriod === 'yearly') {
+                } else if (currentTrendPeriod === 'yearly') {
                     this.renderYearlyTrends(trendsContainer);
-                } else if (currentPeriod === 'category') {
+                } else if (currentTrendPeriod === 'category') {
                     this.renderCategoryTrends(trendsContainer);
                 }
             });
         });
         
         // Create trends container
-        const trendsContainer = containerEl.createDiv('trends-container');
+        const trendsContainer = containerEl.createDiv('trends-content-container');
         
         // Render monthly trends by default
         this.renderMonthlyTrends(trendsContainer);
@@ -2227,18 +2640,18 @@ export class StatsView extends ItemView {
      * Render monthly trends
      */
     private renderMonthlyTrends(containerEl: HTMLElement): void {
-        // Get filtered transactions based on the main filters
-        const filteredTransactions = this.getFilteredTransactionsForCurrentScope(); // Use scope filter
+        // Get filtered transactions based on the main filters (Date Range, Type, Account, Category)
+        const filteredTransactions = this.getFilteredTransactionsForCurrentScope(); 
         
         if (filteredTransactions.length === 0) {
-            containerEl.createEl('p', { text: 'No transactions found for the selected filters.' });
+            containerEl.createEl('p', { text: 'No transactions found for the selected filters to analyze monthly trends.' });
             return;
         }
         
         // Group transactions by month
         const transactionsByMonth: Record<string, { income: number, expenses: number, balance: number }> = {};
         
-        // Determine relevant months based on filtered data, not just last 12
+        // Determine relevant months based on filtered data
         const uniqueMonths = [...new Set(filteredTransactions.map(t => moment(normalizeTransactionDate(t.date)).format('YYYY-MM')))].sort();
 
         // Initialize months found in data
@@ -2263,17 +2676,18 @@ export class StatsView extends ItemView {
         
         // Create chart section
         const chartSection = containerEl.createDiv('trends-chart-section');
-        chartSection.createEl('h4', { text: 'Monthly Income & Expenses' });
+        chartSection.createEl('h4', { text: 'Monthly Income, Expenses & Balance' });
         
         // Create chart
-        const chartGrid = chartSection.createDiv('trends-chart-grid');
+        const chartGrid = chartSection.createDiv('bar-chart-grid trends-chart-grid'); // Use generic class
         
         // Find max values across all displayed months for consistent scaling
-        const allIncomes = Object.values(transactionsByMonth).map(d => d.income);
-        const allExpenses = Object.values(transactionsByMonth).map(d => d.expenses);
-        const allBalances = Object.values(transactionsByMonth).map(d => Math.abs(d.balance));
-        const maxIncomeExpense = Math.max(1, ...allIncomes, ...allExpenses); // Ensure at least 1
-        const maxAbsBalance = Math.max(1, ...allBalances); // Ensure at least 1
+        const allIncomes = uniqueMonths.map(m => transactionsByMonth[m].income);
+        const allExpenses = uniqueMonths.map(m => transactionsByMonth[m].expenses);
+        const allBalancesAbs = uniqueMonths.map(m => Math.abs(transactionsByMonth[m].balance));
+         // Use Math.max(1, ...) to prevent division by zero and handle cases with no data
+        const maxIncomeExpense = Math.max(1, ...allIncomes, ...allExpenses); 
+        const maxAbsBalance = Math.max(1, ...allBalancesAbs); 
 
         // Add bars for each month
         uniqueMonths.forEach(monthKey => {
@@ -2281,46 +2695,45 @@ export class StatsView extends ItemView {
             const monthLabel = moment(monthKey).format('MMM YYYY');
             
             // Create month container
-            const monthContainer = chartGrid.createDiv('trend-period-container');
+            const monthContainer = chartGrid.createDiv('bar-item-container trend-period-container');
             
-            // Create bars container
-            const barsContainer = monthContainer.createDiv('trend-bars-container');
+            // Create bars container (grouping income, expense, balance)
+            const barsContainer = monthContainer.createDiv('bar-group trend-bars-container');
             
             // Income bar
-            const incomeBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const incomeBar = incomeBarWrapper.createDiv('trend-bar income-bar');
-            const incomeHeightPercentage = (monthData.income / maxIncomeExpense) * 100;
+            const incomeBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const incomeBar = incomeBarWrapper.createDiv('bar trend-bar income-bar');
+            const incomeHeightPercentage = maxIncomeExpense > 0 ? (monthData.income / maxIncomeExpense) * 100 : 0;
             incomeBar.style.height = `${incomeHeightPercentage}%`;
             if (monthData.income > 0) {
-                const incomeValueDiv = incomeBar.createDiv('trend-bar-value');
-                incomeValueDiv.setText(`¥${monthData.income.toFixed(0)}`);
+                incomeBar.createDiv({cls: 'bar-value trend-bar-value'}).setText(`¥${monthData.income.toFixed(0)}`);
             }
             
             // Expense bar
-            const expenseBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const expenseBar = expenseBarWrapper.createDiv('trend-bar expense-bar');
-            const expenseHeightPercentage = (monthData.expenses / maxIncomeExpense) * 100;
+            const expenseBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const expenseBar = expenseBarWrapper.createDiv('bar trend-bar expense-bar');
+            const expenseHeightPercentage = maxIncomeExpense > 0 ? (monthData.expenses / maxIncomeExpense) * 100 : 0;
             expenseBar.style.height = `${expenseHeightPercentage}%`;
             if (monthData.expenses > 0) {
-                const expenseValueDiv = expenseBar.createDiv('trend-bar-value');
-                expenseValueDiv.setText(`¥${monthData.expenses.toFixed(0)}`);
+                expenseBar.createDiv({cls: 'bar-value trend-bar-value'}).setText(`¥${monthData.expenses.toFixed(0)}`);
             }
             
             // Balance bar
-            const balanceBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const balanceBar = balanceBarWrapper.createDiv(`trend-bar balance-bar ${monthData.balance >= 0 ? 'positive' : 'negative'}`);
-            const balanceHeightPercentage = (Math.abs(monthData.balance) / maxAbsBalance) * 100;
+            const balanceBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const balanceBar = balanceBarWrapper.createDiv(`bar trend-bar balance-bar ${monthData.balance >= 0 ? 'positive' : 'negative'}`);
+             // Scale balance relative to its own max, could potentially use same scale as income/expense if desired
+            const balanceHeightPercentage = maxAbsBalance > 0 ? (Math.abs(monthData.balance) / maxAbsBalance) * 100 : 0;
             balanceBar.style.height = `${balanceHeightPercentage}%`;
-            const balanceValueDiv = balanceBar.createDiv('trend-bar-value');
+            const balanceValueDiv = balanceBar.createDiv({cls: 'bar-value trend-bar-value'});
             balanceValueDiv.setText(`¥${monthData.balance.toFixed(0)}`);
             
             // Month label
-            const monthLabelDiv = monthContainer.createDiv('trend-period-label');
+            const monthLabelDiv = monthContainer.createDiv('bar-label trend-period-label');
             monthLabelDiv.setText(monthLabel);
         });
         
         // Create legend
-        const legendContainer = chartSection.createDiv('trends-legend');
+        const legendContainer = chartSection.createDiv('chart-legend trends-legend');
         const incomeLegend = legendContainer.createDiv('legend-item');
         incomeLegend.createDiv('legend-color income-color');
         incomeLegend.createEl('span', { text: 'Income' });
@@ -2328,29 +2741,33 @@ export class StatsView extends ItemView {
         expenseLegend.createDiv('legend-color expense-color');
         expenseLegend.createEl('span', { text: 'Expenses' });
         const balanceLegend = legendContainer.createDiv('legend-item');
-        balanceLegend.createDiv('legend-color balance-color');
+        balanceLegend.createDiv('legend-color balance-color'); // Use a distinct color for balance bar
         balanceLegend.createEl('span', { text: 'Balance' });
         
         // Create trend analysis section
         const analysisSection = containerEl.createDiv('trend-analysis-section');
-        analysisSection.createEl('h4', { text: 'Trend Analysis' });
+        analysisSection.createEl('h4', { text: 'Monthly Trend Analysis' });
         
         // Calculate averages over the displayed period
         const totalMonths = uniqueMonths.length;
-        if (totalMonths > 0) {
-            const totalIncome = allIncomes.reduce((sum, val) => sum + val, 0);
-            const totalExpenses = allExpenses.reduce((sum, val) => sum + val, 0);
-            const totalBalance = totalIncome - totalExpenses;
+        if (totalMonths > 1) { // Need at least 2 months for meaningful analysis
+             const totalIncome = allIncomes.reduce((sum, val) => sum + val, 0);
+             const totalExpenses = allExpenses.reduce((sum, val) => sum + val, 0);
+             const totalBalance = totalIncome - totalExpenses; // Use summed totals for accuracy
             
             const avgIncome = totalIncome / totalMonths;
             const avgExpenses = totalExpenses / totalMonths;
             const avgBalance = totalBalance / totalMonths;
             
-            // Find highest income and expense months within the displayed period
+            // Find highest/lowest months within the displayed period
             let highestIncomeMonth = '';
             let highestIncomeValue = -Infinity;
             let highestExpenseMonth = '';
             let highestExpenseValue = -Infinity;
+            let highestBalanceMonth = '';
+            let highestBalanceValue = -Infinity;
+            let lowestBalanceMonth = '';
+            let lowestBalanceValue = Infinity;
             
             uniqueMonths.forEach(monthKey => {
                 const monthData = transactionsByMonth[monthKey];
@@ -2362,27 +2779,42 @@ export class StatsView extends ItemView {
                     highestExpenseValue = monthData.expenses;
                     highestExpenseMonth = monthKey;
                 }
+                 if (monthData.balance > highestBalanceValue) {
+                    highestBalanceValue = monthData.balance;
+                    highestBalanceMonth = monthKey;
+                }
+                 if (monthData.balance < lowestBalanceValue) {
+                    lowestBalanceValue = monthData.balance;
+                    lowestBalanceMonth = monthKey;
+                }
             });
             
             // Create analysis table
             const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table' });
+            const analysisBody = analysisTable.createEl('tbody'); // Use tbody directly for key-value pairs
+
             const analysisData = [
                 { label: 'Avg Monthly Income', value: `¥${avgIncome.toFixed(2)}` },
                 { label: 'Avg Monthly Expenses', value: `¥${avgExpenses.toFixed(2)}` },
-                { label: 'Avg Monthly Balance', value: `¥${avgBalance.toFixed(2)}` },
+                { label: 'Avg Monthly Balance', value: `¥${avgBalance.toFixed(2)}`, class: avgBalance >= 0 ? 'positive' : 'negative' },
                 { label: 'Highest Income Month', value: `${moment(highestIncomeMonth).format('MMM YYYY')} (¥${highestIncomeValue.toFixed(2)})` },
                 { label: 'Highest Expense Month', value: `${moment(highestExpenseMonth).format('MMM YYYY')} (¥${highestExpenseValue.toFixed(2)})` },
-                { label: `Total Income (${totalMonths} mo)`, value: `¥${totalIncome.toFixed(2)}` },
-                { label: `Total Expenses (${totalMonths} mo)`, value: `¥${totalExpenses.toFixed(2)}` },
-                { label: `Total Balance (${totalMonths} mo)`, value: `¥${totalBalance.toFixed(2)}` }
+                 { label: 'Highest Balance Month', value: `${moment(highestBalanceMonth).format('MMM YYYY')} (¥${highestBalanceValue.toFixed(2)})`, class: 'positive' },
+                 { label: 'Lowest Balance Month', value: `${moment(lowestBalanceMonth).format('MMM YYYY')} (¥${lowestBalanceValue.toFixed(2)})`, class: 'negative' },
+                 { label: `Total Income (${totalMonths} mo)`, value: `¥${totalIncome.toFixed(2)}` },
+                 { label: `Total Expenses (${totalMonths} mo)`, value: `¥${totalExpenses.toFixed(2)}` },
+                 { label: `Net Balance (${totalMonths} mo)`, value: `¥${totalBalance.toFixed(2)}`, class: totalBalance >= 0 ? 'positive' : 'negative' }
             ];
             analysisData.forEach(item => {
-                const row = analysisTable.createEl('tr');
+                const row = analysisBody.createEl('tr');
                 row.createEl('td', { text: item.label });
-                row.createEl('td', { text: item.value });
+                 const valueCell = row.createEl('td', { text: item.value });
+                 if (item.class) {
+                     valueCell.addClass(item.class);
+                 }
             });
         } else {
-             analysisSection.createEl('p', { text: 'Not enough data for trend analysis.' });
+             analysisSection.createEl('p', { text: 'Need data from at least two months for trend analysis.' });
         }
     }
     
@@ -2390,11 +2822,11 @@ export class StatsView extends ItemView {
      * Render yearly trends
      */
     private renderYearlyTrends(containerEl: HTMLElement): void {
-        // Get filtered transactions
+        // Get filtered transactions based on the main filters
         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
         
         if (filteredTransactions.length === 0) {
-            containerEl.createEl('p', { text: 'No transactions found for the selected filters.' });
+            containerEl.createEl('p', { text: 'No transactions found for the selected filters to analyze yearly trends.' });
             return;
         }
         
@@ -2426,148 +2858,163 @@ export class StatsView extends ItemView {
         
         // Create chart section
         const chartSection = containerEl.createDiv('trends-chart-section');
-        chartSection.createEl('h4', { text: 'Yearly Income & Expenses' });
+        chartSection.createEl('h4', { text: 'Yearly Income, Expenses & Balance' });
         
         // Create chart
-        const chartGrid = chartSection.createDiv('trends-chart-grid');
+        const chartGrid = chartSection.createDiv('bar-chart-grid trends-chart-grid');
 
         // Find max values across all displayed years
-        const allIncomes = Object.values(transactionsByYear).map(d => d.income);
-        const allExpenses = Object.values(transactionsByYear).map(d => d.expenses);
-        const allBalances = Object.values(transactionsByYear).map(d => Math.abs(d.balance));
+        const allIncomes = uniqueYears.map(y => transactionsByYear[y].income);
+        const allExpenses = uniqueYears.map(y => transactionsByYear[y].expenses);
+        const allBalancesAbs = uniqueYears.map(y => Math.abs(transactionsByYear[y].balance));
         const maxIncomeExpense = Math.max(1, ...allIncomes, ...allExpenses);
-        const maxAbsBalance = Math.max(1, ...allBalances);
+        const maxAbsBalance = Math.max(1, ...allBalancesAbs);
         
         // Add bars for each year
         uniqueYears.forEach(yearKey => {
             const yearData = transactionsByYear[yearKey];
             
             // Create year container
-            const yearContainer = chartGrid.createDiv('trend-period-container');
+            const yearContainer = chartGrid.createDiv('bar-item-container trend-period-container');
             
             // Create bars container
-            const barsContainer = yearContainer.createDiv('trend-bars-container');
+            const barsContainer = yearContainer.createDiv('bar-group trend-bars-container');
             
             // Income bar
-            const incomeBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const incomeBar = incomeBarWrapper.createDiv('trend-bar income-bar');
-            const incomeHeightPercentage = (yearData.income / maxIncomeExpense) * 100;
+            const incomeBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const incomeBar = incomeBarWrapper.createDiv('bar trend-bar income-bar');
+            const incomeHeightPercentage = maxIncomeExpense > 0 ? (yearData.income / maxIncomeExpense) * 100 : 0;
             incomeBar.style.height = `${incomeHeightPercentage}%`;
             if (yearData.income > 0) {
-                const incomeValueDiv = incomeBar.createDiv('trend-bar-value');
-                incomeValueDiv.setText(`¥${yearData.income.toFixed(0)}`);
+                 incomeBar.createDiv({cls: 'bar-value trend-bar-value'}).setText(`¥${yearData.income.toFixed(0)}`);
             }
             
             // Expense bar
-            const expenseBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const expenseBar = expenseBarWrapper.createDiv('trend-bar expense-bar');
-            const expenseHeightPercentage = (yearData.expenses / maxIncomeExpense) * 100;
+            const expenseBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const expenseBar = expenseBarWrapper.createDiv('bar trend-bar expense-bar');
+            const expenseHeightPercentage = maxIncomeExpense > 0 ? (yearData.expenses / maxIncomeExpense) * 100 : 0;
             expenseBar.style.height = `${expenseHeightPercentage}%`;
             if (yearData.expenses > 0) {
-                const expenseValueDiv = expenseBar.createDiv('trend-bar-value');
-                expenseValueDiv.setText(`¥${yearData.expenses.toFixed(0)}`);
+                 expenseBar.createDiv({cls: 'bar-value trend-bar-value'}).setText(`¥${yearData.expenses.toFixed(0)}`);
             }
             
             // Balance bar
-            const balanceBarWrapper = barsContainer.createDiv('trend-bar-wrapper');
-            const balanceBar = balanceBarWrapper.createDiv(`trend-bar balance-bar ${yearData.balance >= 0 ? 'positive' : 'negative'}`);
-            const balanceHeightPercentage = (Math.abs(yearData.balance) / maxAbsBalance) * 100;
+            const balanceBarWrapper = barsContainer.createDiv('bar-wrapper trend-bar-wrapper');
+            const balanceBar = balanceBarWrapper.createDiv(`bar trend-bar balance-bar ${yearData.balance >= 0 ? 'positive' : 'negative'}`);
+            const balanceHeightPercentage = maxAbsBalance > 0 ? (Math.abs(yearData.balance) / maxAbsBalance) * 100 : 0;
             balanceBar.style.height = `${balanceHeightPercentage}%`;
-            const balanceValueDiv = balanceBar.createDiv('trend-bar-value');
-            balanceValueDiv.setText(`¥${yearData.balance.toFixed(0)}`);
+             const balanceValueDiv = balanceBar.createDiv({cls: 'bar-value trend-bar-value'});
+             balanceValueDiv.setText(`¥${yearData.balance.toFixed(0)}`);
             
             // Year label
-            const yearLabelDiv = yearContainer.createDiv('trend-period-label');
+            const yearLabelDiv = yearContainer.createDiv('bar-label trend-period-label');
             yearLabelDiv.setText(yearKey);
         });
         
         // Create legend
-        const legendContainer = chartSection.createDiv('trends-legend');
-        const incomeLegend = legendContainer.createDiv('legend-item');
-        incomeLegend.createDiv('legend-color income-color');
-        incomeLegend.createEl('span', { text: 'Income' });
-        const expenseLegend = legendContainer.createDiv('legend-item');
-        expenseLegend.createDiv('legend-color expense-color');
-        expenseLegend.createEl('span', { text: 'Expenses' });
-        const balanceLegend = legendContainer.createDiv('legend-item');
-        balanceLegend.createDiv('legend-color balance-color');
-        balanceLegend.createEl('span', { text: 'Balance' });
+         const legendContainer = chartSection.createDiv('chart-legend trends-legend');
+         const incomeLegend = legendContainer.createDiv('legend-item');
+         incomeLegend.createDiv('legend-color income-color');
+         incomeLegend.createEl('span', { text: 'Income' });
+         const expenseLegend = legendContainer.createDiv('legend-item');
+         expenseLegend.createDiv('legend-color expense-color');
+         expenseLegend.createEl('span', { text: 'Expenses' });
+         const balanceLegend = legendContainer.createDiv('legend-item');
+         balanceLegend.createDiv('legend-color balance-color');
+         balanceLegend.createEl('span', { text: 'Balance' });
         
         // Create trend analysis section
         const analysisSection = containerEl.createDiv('trend-analysis-section');
-        analysisSection.createEl('h4', { text: 'Yearly Analysis' });
+        analysisSection.createEl('h4', { text: 'Yearly Analysis Table' });
         
-        // Calculate growth rates
-        const growthRates: Record<string, { income: number | null, expenses: number | null }> = {};
+        // Calculate growth rates if more than one year exists
+        const growthRates: Record<string, { income: number | null, expenses: number | null, balance: number | null }> = {};
         
-        for (let i = 1; i < uniqueYears.length; i++) {
-            const currentYear = uniqueYears[i];
-            const previousYear = uniqueYears[i - 1];
-            
-            const currentData = transactionsByYear[currentYear];
-            const previousData = transactionsByYear[previousYear];
-            
-            const incomeGrowth = previousData.income !== 0 
-                ? ((currentData.income - previousData.income) / Math.abs(previousData.income)) * 100 
-                : (currentData.income !== 0 ? null : 0); // Indicate infinite growth or zero growth
+        if (uniqueYears.length > 1) {
+            for (let i = 1; i < uniqueYears.length; i++) {
+                const currentYear = uniqueYears[i];
+                const previousYear = uniqueYears[i - 1];
                 
-            const expensesGrowth = previousData.expenses !== 0 
-                ? ((currentData.expenses - previousData.expenses) / Math.abs(previousData.expenses)) * 100 
-                : (currentData.expenses !== 0 ? null : 0);
+                const currentData = transactionsByYear[currentYear];
+                const previousData = transactionsByYear[previousYear];
                 
-            growthRates[currentYear] = {
-                income: incomeGrowth,
-                expenses: expensesGrowth,
-            };
+                 // Helper to calculate growth, handling division by zero and signs
+                 const calculateGrowth = (current: number, previous: number): number | null => {
+                     if (previous === 0) {
+                         return current === 0 ? 0 : null; // 0% if both zero, Infinite if current is non-zero
+                     }
+                     return ((current - previous) / Math.abs(previous)) * 100;
+                 };
+                    
+                growthRates[currentYear] = {
+                    income: calculateGrowth(currentData.income, previousData.income),
+                    expenses: calculateGrowth(currentData.expenses, previousData.expenses),
+                    balance: calculateGrowth(currentData.balance, previousData.balance),
+                };
+            }
         }
         
         // Create analysis table
-        const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table' });
-        const headerRow = analysisTable.createEl('tr');
+        const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table yearly-analysis-table' }); // Add specific class
+         const thead = analysisTable.createEl('thead');
+        const headerRow = thead.createEl('tr');
         headerRow.createEl('th', { text: 'Year' });
         headerRow.createEl('th', { text: 'Income' });
         headerRow.createEl('th', { text: 'Expenses' });
         headerRow.createEl('th', { text: 'Balance' });
-        headerRow.createEl('th', { text: 'Income Growth' });
-        headerRow.createEl('th', { text: 'Expense Growth' });
+        headerRow.createEl('th', { text: 'Inc Growth' }); // Shorten headers
+        headerRow.createEl('th', { text: 'Exp Growth' });
+         headerRow.createEl('th', { text: 'Bal Growth' });
+
+         const tbody = analysisTable.createEl('tbody');
         
         // Add rows for each year
         uniqueYears.forEach(yearKey => {
             const yearData = transactionsByYear[yearKey];
-            const growthData = growthRates[yearKey];
+            const growthData = growthRates[yearKey]; // Might be undefined for the first year
             
-            const row = analysisTable.createEl('tr');
+            const row = tbody.createEl('tr');
             row.createEl('td', { text: yearKey });
-            row.createEl('td', { text: `¥${yearData.income.toFixed(2)}` });
-            row.createEl('td', { text: `¥${yearData.expenses.toFixed(2)}` });
-            row.createEl('td', { text: `¥${yearData.balance.toFixed(2)}` });
+            // Income
+             const incomeCell = row.createEl('td');
+             incomeCell.setText(`¥${yearData.income.toFixed(2)}`);
+             incomeCell.addClass('income-value');
+             // Expenses
+             const expenseCell = row.createEl('td');
+             expenseCell.setText(`¥${yearData.expenses.toFixed(2)}`);
+             expenseCell.addClass('expense-value');
+             // Balance
+             const balanceCell = row.createEl('td');
+             balanceCell.setText(`¥${yearData.balance.toFixed(2)}`);
+             balanceCell.addClass(yearData.balance >= 0 ? 'positive' : 'negative');
             
-            if (growthData) {
-                const formatGrowth = (value: number | null) => {
-                    if (value === null) return '∞'; // Infinite growth
-                    if (value === 0) return '-';
-                    return `${value.toFixed(1)}%`;
-                };
-                const addGrowthClass = (cell: HTMLTableCellElement, value: number | null) => {
-                    if (value === null || value > 0) cell.addClass('positive');
-                    if (value !== null && value < 0) cell.addClass('negative');
-                };
-                const addExpenseGrowthClass = (cell: HTMLTableCellElement, value: number | null) => {
-                     if (value === null || value > 0) cell.addClass('negative'); // Higher expense is negative
-                     if (value !== null && value < 0) cell.addClass('positive');
-                }
+             // Growth Columns
+             const formatGrowth = (value: number | null): string => {
+                 if (value === null) return '∞'; // Infinite growth
+                 if (value === 0 || isNaN(value)) return '-'; // No change or invalid
+                 return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`; // Add '+' sign for positive
+             };
+              const addGrowthClass = (cell: HTMLTableCellElement, value: number | null): void => {
+                 if (value === null || value > 0) cell.addClass('positive'); // Infinite or positive growth is green
+                 else if (value < 0) cell.addClass('negative'); // Negative growth is red
+             };
+             const addExpenseGrowthClass = (cell: HTMLTableCellElement, value: number | null): void => {
+                  // Inverse coloring for expenses: growth is red, decrease is green
+                  if (value === null || value > 0) cell.addClass('negative'); 
+                  else if (value < 0) cell.addClass('positive');
+             };
 
-                const incomeGrowthCell = row.createEl('td');
-                incomeGrowthCell.setText(formatGrowth(growthData.income));
-                addGrowthClass(incomeGrowthCell, growthData.income);
-                
-                const expenseGrowthCell = row.createEl('td');
-                expenseGrowthCell.setText(formatGrowth(growthData.expenses));
-                addExpenseGrowthClass(expenseGrowthCell, growthData.expenses);
-            } else {
-                row.createEl('td', { text: '-' });
-                row.createEl('td', { text: '-' });
-            }
+             const incGrowthCell = row.createEl('td');
+             incGrowthCell.setText(growthData ? formatGrowth(growthData.income) : '-');
+             if(growthData) addGrowthClass(incGrowthCell, growthData.income);
+
+             const expGrowthCell = row.createEl('td');
+             expGrowthCell.setText(growthData ? formatGrowth(growthData.expenses) : '-');
+             if(growthData) addExpenseGrowthClass(expGrowthCell, growthData.expenses); // Use inverse coloring
+
+             const balGrowthCell = row.createEl('td');
+             balGrowthCell.setText(growthData ? formatGrowth(growthData.balance) : '-');
+             if(growthData) addGrowthClass(balGrowthCell, growthData.balance);
         });
     }
     
@@ -2575,24 +3022,32 @@ export class StatsView extends ItemView {
      * Render category trends
      */
     private renderCategoryTrends(containerEl: HTMLElement): void {
-        // Get filtered transactions
+        // Get filtered transactions based on the main filters
         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
         
         if (filteredTransactions.length === 0) {
-            containerEl.createEl('p', { text: 'No transactions found for the selected filters.' });
+            containerEl.createEl('p', { text: 'No transactions found for the selected filters to analyze category trends.' });
             return;
         }
         
         // Create tabs for income and expense categories
-        const categoryTypeTabs = containerEl.createDiv('category-type-tabs');
+        const categoryTypeTabs = containerEl.createDiv('category-type-tabs', el => {
+            // Style similar to other tab groups
+             el.style.display = 'flex';
+             el.style.flexWrap = 'wrap';
+             el.style.gap = '5px';
+             el.style.marginBottom = '15px';
+        });
         
+         let currentCategoryType: 'income' | 'expense' = 'expense'; // Default to expense
+
         const incomeTab = categoryTypeTabs.createEl('button', {
-            cls: ['category-type-tab', 'active'],
+            cls: ['category-type-tab', currentCategoryType === 'income' ? 'active' : ''],
             text: 'Income Categories'
         });
         
         const expenseTab = categoryTypeTabs.createEl('button', {
-            cls: ['category-type-tab'],
+            cls: ['category-type-tab', currentCategoryType === 'expense' ? 'active' : ''],
             text: 'Expense Categories'
         });
         
@@ -2615,85 +3070,109 @@ export class StatsView extends ItemView {
             }
             
             // Group transactions by category
-            const transactionsByCategory: Record<string, number> = {};
+            const transactionsByCategory: Record<string, { amount: number, count: number }> = {};
             const categories = flattenHierarchy(this.plugin.settings.categories);
             
             typeTransactions.forEach(transaction => {
+                let categoryId = transaction.categoryId || 'uncategorized';
                 let categoryName = 'Uncategorized';
                 if (transaction.categoryId) {
                     const category = categories.find(c => c.id === transaction.categoryId);
                     if (category) categoryName = category.name;
+                    else categoryId = 'uncategorized'; // Use ID if name not found but ID exists
                 }
-                transactionsByCategory[categoryName] = (transactionsByCategory[categoryName] || 0) + transaction.amount;
+
+                if (!transactionsByCategory[categoryId]) {
+                     transactionsByCategory[categoryId] = { amount: 0, count: 0 };
+                 }
+                transactionsByCategory[categoryId].amount += transaction.amount;
+                 transactionsByCategory[categoryId].count++;
             });
+
+             // Map back to names for display, keeping uncategorized separate
+             const categoryDataForDisplay: { name: string, amount: number, count: number }[] = [];
+             for (const catId in transactionsByCategory) {
+                 let name = 'Uncategorized';
+                 if (catId !== 'uncategorized') {
+                     name = categories.find(c => c.id === catId)?.name || `Unknown (${catId})`;
+                 }
+                 categoryDataForDisplay.push({ 
+                     name: name, 
+                     amount: transactionsByCategory[catId].amount,
+                     count: transactionsByCategory[catId].count 
+                 });
+             }
             
             // Sort categories by amount (descending)
-            const sortedCategories = Object.entries(transactionsByCategory)
-                .sort((a, b) => b[1] - a[1]);
+            const sortedCategories = categoryDataForDisplay.sort((a, b) => b.amount - a.amount);
             
             // Calculate total amount
-            const totalAmount = sortedCategories.reduce((sum, [_, amount]) => sum + amount, 0);
+            const totalAmount = sortedCategories.reduce((sum, cat) => sum + cat.amount, 0);
             
-            // Create chart section (e.g., bar chart)
+            // Create chart section (Pie Chart)
             const chartSection = categoryDataContainer.createDiv('category-chart-section');
-            chartSection.createEl('h4', { text: `${type === 'income' ? 'Income' : 'Expense'} by Category` });
-            const chartContainer = chartSection.createDiv('category-bar-chart-container');
-
-            if (totalAmount > 0) {
-                sortedCategories.forEach(([categoryName, amount]) => {
-                    const categoryContainer = chartContainer.createDiv('category-bar-item');
-                    const barLabel = categoryContainer.createDiv('category-bar-label');
-                    barLabel.setText(categoryName);
-                    
-                    const barWrapper = categoryContainer.createDiv('category-bar-wrapper');
-                    const bar = barWrapper.createDiv('category-bar');
-                    const widthPercentage = (amount / totalAmount) * 100;
-                    bar.style.width = `${widthPercentage}%`;
-                    
-                    const barValue = categoryContainer.createDiv('category-bar-value');
-                    barValue.setText(`¥${amount.toFixed(2)} (${widthPercentage.toFixed(1)}%)`);
-                });
-            }
+             chartSection.createEl('h4', { text: `${type === 'income' ? 'Income' : 'Expense'} Breakdown by Category` });
+             // Reuse the pie chart rendering function
+             this.renderCategoryPieChart(chartSection, sortedCategories, totalAmount); 
             
             // Create trend analysis section (Table)
-            const analysisSection = categoryDataContainer.createDiv('trend-analysis-section');
-            analysisSection.createEl('h4', { text: 'Category Analysis Table' });
-            const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table' });
-            const headerRow = analysisTable.createEl('tr');
+            const analysisSection = categoryDataContainer.createDiv('trend-analysis-section category-table-section');
+            analysisSection.createEl('h4', { text: 'Category Details Table' });
+            const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table category-analysis-table' });
+             const thead = analysisTable.createEl('thead');
+            const headerRow = thead.createEl('tr');
             headerRow.createEl('th', { text: 'Category' });
+             headerRow.createEl('th', { text: 'Txns' }); // Transaction count
             headerRow.createEl('th', { text: 'Amount' });
             headerRow.createEl('th', { text: 'Percentage' });
+            headerRow.createEl('th', { text: 'Avg Txn Amt' }); // Average amount per transaction
+
+             const tbody = analysisTable.createEl('tbody');
             
             // Add rows for each category
-            sortedCategories.forEach(([categoryName, amount]) => {
-                const row = analysisTable.createEl('tr');
-                row.createEl('td', { text: categoryName });
-                row.createEl('td', { text: `¥${amount.toFixed(2)}` });
-                const percentage = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
+            sortedCategories.forEach(catData => {
+                const row = tbody.createEl('tr');
+                row.createEl('td', { text: catData.name });
+                 row.createEl('td', { text: catData.count.toString() });
+                row.createEl('td', { text: `¥${catData.amount.toFixed(2)}` });
+                const percentage = totalAmount > 0 ? (catData.amount / totalAmount) * 100 : 0;
                 row.createEl('td', { text: `${percentage.toFixed(1)}%` });
+                 const avgAmount = catData.count > 0 ? (catData.amount / catData.count) : 0;
+                 row.createEl('td', { text: `¥${avgAmount.toFixed(2)}` });
             });
             
             // Add total row
-            const totalRow = analysisTable.createEl('tr', { cls: 'total-row' });
+             const tfoot = analysisTable.createEl('tfoot');
+            const totalRow = tfoot.createEl('tr', { cls: 'total-row' });
             totalRow.createEl('td', { text: 'Total' });
+             const totalCount = sortedCategories.reduce((sum, cat) => sum + cat.count, 0);
+             totalRow.createEl('td', { text: totalCount.toString() });
             totalRow.createEl('td', { text: `¥${totalAmount.toFixed(2)}` });
             totalRow.createEl('td', { text: totalAmount > 0 ? '100.0%' : '0.0%' });
+             const overallAvg = totalCount > 0 ? (totalAmount / totalCount) : 0;
+             totalRow.createEl('td', { text: `¥${overallAvg.toFixed(2)}` });
         };
         
-        // Render income categories by default
-        renderCategoryData('income');
+        // Render expense categories by default
+        renderCategoryData(currentCategoryType);
         
         // Add event listeners to tabs
         incomeTab.addEventListener('click', () => {
-            incomeTab.addClass('active');
-            expenseTab.removeClass('active');
-            renderCategoryData('income');
+            if (currentCategoryType !== 'income') {
+                currentCategoryType = 'income';
+                incomeTab.addClass('active');
+                expenseTab.removeClass('active');
+                renderCategoryData('income');
+            }
         });
         
         expenseTab.addEventListener('click', () => {
-            expenseTab.addClass('active');
-            incomeTab.removeClass('active');
-            renderCategoryData('expense');
+             if (currentCategoryType !== 'expense') {
+                currentCategoryType = 'expense';
+                expenseTab.addClass('active');
+                incomeTab.removeClass('active');
+                renderCategoryData('expense');
+             }
         });
     }
 
@@ -2701,80 +3180,270 @@ export class StatsView extends ItemView {
      * Render the Analysis tab
      */
     private renderAnalysisTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Financial Analysis' });
+        // containerEl.createEl('h3', { text: 'Financial Analysis' }); // Title redundant
         
-        // Create analysis sections
-        const overviewSection = containerEl.createDiv('analysis-section');
-        overviewSection.createEl('h4', { text: 'Financial Overview (Filtered)' });
-        
+        // Add Summary for the filtered scope first
+        this.addSummarySection(containerEl);
+
         // Get filtered transactions based on scope
         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
         
         if (filteredTransactions.length === 0) {
-            overviewSection.createEl('p', { text: 'No transactions found for the selected filters.' });
-            // Optionally render other analysis sections even if filtered is empty?
+            containerEl.createEl('p', { text: 'No transactions found for the selected filters to perform analysis.' });
             return; 
         }
         
-        // Calculate totals for the filtered period
-        const totals = this.calculateTotals(filteredTransactions);
+        // --- Additional Analysis Sections ---
         
-        // Create summary grid
-        const summaryGrid = overviewSection.createDiv('summary-grid');
-        
-        // Income card
-        const incomeCard = summaryGrid.createDiv('summary-card income-card');
-        incomeCard.createEl('h5', { text: 'Total Income' });
-        incomeCard.createDiv('summary-value').setText(`¥${totals.income.toFixed(2)}`);
-        
-        // Expense card
-        const expenseCard = summaryGrid.createDiv('summary-card expense-card');
-        expenseCard.createEl('h5', { text: 'Total Expenses' });
-        const expenseValue = expenseCard.createDiv('summary-value');
-        expenseValue.setText(`¥${totals.expenses.toFixed(2)}`);
-        
-        // Balance card
-        const balanceCard = summaryGrid.createDiv('summary-card balance-card');
-        balanceCard.createEl('h5', { text: 'Balance' });
-        const balanceValue = balanceCard.createDiv('summary-value');
-        balanceValue.setText(`¥${totals.balance.toFixed(2)}`);
-        if (totals.balance >= 0) {
-            balanceValue.addClass('positive');
-        } else {
-            balanceValue.addClass('negative');
-        }
+        // 1. Expense Breakdown (Reuse)
+         const expenseBreakdownContainer = containerEl.createDiv('analysis-section expense-analysis');
+         expenseBreakdownContainer.createEl('h4', { text: 'Expense Analysis' });
+         this.renderExpensePieChart(expenseBreakdownContainer, filteredTransactions);
+         this.renderExpenseData(expenseBreakdownContainer, filteredTransactions); // Show data table too
+
+        // 2. Income Breakdown (Similar structure to expense)
+         const incomeBreakdownContainer = containerEl.createDiv('analysis-section income-analysis');
+         incomeBreakdownContainer.createEl('h4', { text: 'Income Analysis' });
+         this.renderIncomeAnalysis(incomeBreakdownContainer, filteredTransactions);
+
+        // 3. Cash Flow Analysis (Simple version)
+         const cashFlowContainer = containerEl.createDiv('analysis-section cashflow-analysis');
+         cashFlowContainer.createEl('h4', { text: 'Cash Flow Overview' });
+         this.renderCashFlowAnalysis(cashFlowContainer, filteredTransactions);
+         
+         // 4. Tag Analysis
+         const tagAnalysisContainer = containerEl.createDiv('analysis-section tag-analysis');
+         tagAnalysisContainer.createEl('h4', { text: 'Tag Analysis' });
+         this.renderTagAnalysis(tagAnalysisContainer, filteredTransactions);
+
     }
+
+    /** Helper for Analysis Tab: Render Income Breakdown */
+    private renderIncomeAnalysis(containerEl: HTMLElement, transactions: Transaction[]): void {
+        const incomeTransactions = transactions.filter(t => t.type === 'income');
+        if (incomeTransactions.length === 0) {
+            containerEl.createEl('p', { text: 'No income data found for this period.' });
+            return;
+        }
+
+        // Group income by category
+        const incomeByCategory: Record<string, { amount: number, count: number }> = {};
+        const categories = flattenHierarchy(this.plugin.settings.categories);
+        let totalIncome = 0;
+
+        incomeTransactions.forEach(transaction => {
+             let categoryId = transaction.categoryId || 'uncategorized';
+             let categoryName = 'Uncategorized';
+             if (transaction.categoryId) {
+                 const category = categories.find(c => c.id === transaction.categoryId);
+                 if (category) categoryName = category.name;
+                 else categoryId = 'uncategorized';
+             }
+             if (!incomeByCategory[categoryId]) {
+                 incomeByCategory[categoryId] = { amount: 0, count: 0 };
+             }
+             incomeByCategory[categoryId].amount += transaction.amount;
+             incomeByCategory[categoryId].count++;
+             totalIncome += transaction.amount;
+        });
+
+        const incomeDataForDisplay: { name: string, amount: number, count: number }[] = [];
+        for (const catId in incomeByCategory) {
+            let name = 'Uncategorized';
+            if (catId !== 'uncategorized') {
+                name = categories.find(c => c.id === catId)?.name || `Unknown (${catId})`;
+            }
+            incomeDataForDisplay.push({ name: name, amount: incomeByCategory[catId].amount, count: incomeByCategory[catId].count });
+        }
+
+        const sortedIncome = incomeDataForDisplay.sort((a, b) => b.amount - a.amount);
+
+        // Render Pie Chart
+        this.renderCategoryPieChart(containerEl, sortedIncome, totalIncome, 'Income Sources');
+
+        // Render Table
+        const tableContainer = containerEl.createDiv('income-data-container');
+        const table = tableContainer.createEl('table', { cls: 'analysis-table income-analysis-table' });
+        const thead = table.createEl('thead');
+        const hr = thead.createEl('tr');
+        hr.createEl('th', { text: 'Category' });
+        hr.createEl('th', { text: 'Txns' });
+        hr.createEl('th', { text: 'Amount' });
+        hr.createEl('th', { text: '%' });
+        hr.createEl('th', { text: 'Avg Txn Amt' });
+
+        const tbody = table.createEl('tbody');
+        sortedIncome.forEach(catData => {
+            const row = tbody.createEl('tr');
+            row.createEl('td', { text: catData.name });
+            row.createEl('td', { text: catData.count.toString() });
+            row.createEl('td', { text: `¥${catData.amount.toFixed(2)}` });
+            const percentage = totalIncome > 0 ? (catData.amount / totalIncome) * 100 : 0;
+            row.createEl('td', { text: `${percentage.toFixed(1)}%` });
+            const avgAmount = catData.count > 0 ? (catData.amount / catData.count) : 0;
+            row.createEl('td', { text: `¥${avgAmount.toFixed(2)}` });
+        });
+         const tfoot = table.createEl('tfoot');
+         const totalRow = tfoot.createEl('tr');
+         totalRow.createEl('td', { text: 'Total' });
+         const totalCount = sortedIncome.reduce((sum, i) => sum + i.count, 0);
+         totalRow.createEl('td', { text: totalCount.toString() });
+         totalRow.createEl('td', { text: `¥${totalIncome.toFixed(2)}` });
+         totalRow.createEl('td', { text: '100.0%' });
+          const overallAvg = totalCount > 0 ? (totalIncome / totalCount) : 0;
+         totalRow.createEl('td', { text: `¥${overallAvg.toFixed(2)}` });
+    }
+
+    /** Helper for Analysis Tab: Render Cash Flow Overview */
+    private renderCashFlowAnalysis(containerEl: HTMLElement, transactions: Transaction[]): void {
+         const totals = this.calculateTotals(transactions);
+         const savingsRate = totals.income > 0 ? (totals.balance / totals.income) * 100 : 0;
+
+         const table = containerEl.createEl('table', { cls: 'analysis-table cashflow-table' });
+         const tbody = table.createEl('tbody');
+
+         const createRow = (label: string, value: string, valueClass?: string) => {
+             const row = tbody.createEl('tr');
+             row.createEl('td', { text: label });
+              const cell = row.createEl('td', { text: value });
+              if (valueClass) cell.addClass(valueClass);
+         };
+
+         createRow('Total Income', `¥${totals.income.toFixed(2)}`, 'income-value');
+         createRow('Total Expenses', `¥${totals.expenses.toFixed(2)}`, 'expense-value');
+         createRow('Net Cash Flow (Balance)', `¥${totals.balance.toFixed(2)}`, totals.balance >= 0 ? 'positive' : 'negative');
+         createRow('Savings Rate', `${savingsRate.toFixed(1)}%`, savingsRate >= 0 ? 'positive' : 'negative'); // Savings rate as % of income
+         createRow('Average Transaction Amount', `¥${(transactions.reduce((sum, t) => sum + t.amount, 0) / transactions.length).toFixed(2)}`);
+         createRow('Average Income Transaction', `¥${(totals.income / transactions.filter(t=>t.type==='income').length || 0).toFixed(2)}`);
+         createRow('Average Expense Transaction', `¥${(totals.expenses / transactions.filter(t=>t.type==='expense').length || 0).toFixed(2)}`);
+    }
+
+    /** Helper for Analysis Tab: Render Tag Analysis */
+     private renderTagAnalysis(containerEl: HTMLElement, transactions: Transaction[]): void {
+        const tags = flattenHierarchy(this.plugin.settings.tags);
+        if (tags.length === 0) {
+            containerEl.createEl('p', { text: 'No tags defined in settings.' });
+            return;
+        }
+
+        const tagData: Record<string, { income: number, expense: number, count: number }> = {};
+
+         // Initialize tag data
+         tags.forEach(tag => {
+             tagData[tag.id] = { income: 0, expense: 0, count: 0 };
+         });
+         // Add an entry for transactions without tags
+         tagData['untagged'] = { income: 0, expense: 0, count: 0 };
+
+
+        transactions.forEach(t => {
+            const tagIds = t.tagIds || [];
+             if (tagIds.length === 0) {
+                 // Count untagged transactions
+                 if (t.type === 'income') tagData['untagged'].income += t.amount;
+                 else tagData['untagged'].expense += t.amount;
+                 tagData['untagged'].count++;
+             } else {
+                 tagIds.forEach(tagId => {
+                     if (tagData[tagId]) {
+                         if (t.type === 'income') tagData[tagId].income += t.amount;
+                         else tagData[tagId].expense += t.amount;
+                         tagData[tagId].count++;
+                     }
+                      // Could handle unknown tag IDs here if needed
+                 });
+             }
+        });
+
+         // Prepare data for table, filtering out tags with no transactions
+         const tableData = tags.map(tag => ({
+             id: tag.id,
+             name: tag.name,
+             ...tagData[tag.id],
+             net: tagData[tag.id].income - tagData[tag.id].expense
+         })).filter(d => d.count > 0); // Only show tags used in the filtered period
+
+         // Add untagged data if it has transactions
+         if (tagData['untagged'].count > 0) {
+             tableData.push({
+                 id: 'untagged',
+                 name: 'Untagged',
+                  ...tagData['untagged'],
+                  net: tagData['untagged'].income - tagData['untagged'].expense
+             });
+         }
+         
+         if (tableData.length === 0) {
+             containerEl.createEl('p', { text: 'No tagged transactions found in this period.' });
+             return;
+         }
+
+         // Sort by count or net amount? Let's sort by count descending.
+         tableData.sort((a, b) => b.count - a.count);
+
+         // Create Table
+         const table = containerEl.createEl('table', { cls: 'analysis-table tag-analysis-table' });
+         const thead = table.createEl('thead');
+         const hr = thead.createEl('tr');
+         hr.createEl('th', { text: 'Tag' });
+         hr.createEl('th', { text: 'Txns' });
+         hr.createEl('th', { text: 'Income' });
+         hr.createEl('th', { text: 'Expense' });
+         hr.createEl('th', { text: 'Net' });
+
+         const tbody = table.createEl('tbody');
+         tableData.forEach(d => {
+             const row = tbody.createEl('tr');
+             row.createEl('td', { text: d.name });
+             row.createEl('td', { text: d.count.toString() });
+              const incCell = row.createEl('td', { text: `¥${d.income.toFixed(2)}` });
+              if (d.income > 0) incCell.addClass('income-value');
+              const expCell = row.createEl('td', { text: `¥${d.expense.toFixed(2)}` });
+              if (d.expense > 0) expCell.addClass('expense-value');
+              const netCell = row.createEl('td', { text: `¥${d.net.toFixed(2)}` });
+              if (d.net !== 0) netCell.addClass(d.net > 0 ? 'positive' : 'negative');
+         });
+     }
+
 
     /**
      * Render the Reports tab
      */
     private renderReportsTab(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'Financial Reports' });
+        // containerEl.createEl('h3', { text: 'Financial Reports' }); // Title redundant
         
         // Create period selector
-        const periodSelector = containerEl.createDiv('report-period-selector');
+        const periodSelector = containerEl.createDiv('report-period-selector', el => {
+             // Style similar to main tabs
+             el.style.display = 'flex';
+             el.style.flexWrap = 'wrap';
+             el.style.gap = '5px';
+             el.style.marginBottom = '15px'; // Space below tabs
+        });
         
         // Create period tabs
         const periodTabs = [
-            { id: 'daily', label: 'Daily Report' },
+            // { id: 'daily', label: 'Daily Report' }, // Daily might be too granular
             { id: 'monthly', label: 'Monthly Report' },
             { id: 'yearly', label: 'Yearly Report' },
-            { id: 'category', label: 'Category Report' }
+            { id: 'category', label: 'Category Report' },
+             { id: 'account', label: 'Account Report' },
+             { id: 'tag', label: 'Tag Report' }
         ];
         
-        // Current period
-        let currentPeriod = 'monthly';
+        // Current period for reports (store as property?)
+        let currentReportPeriod = 'monthly'; // Default
         
         // Create tabs
         periodTabs.forEach(tab => {
             const tabEl = periodSelector.createEl('button', {
-                cls: ['report-period-tab', tab.id === currentPeriod ? 'active' : ''],
+                cls: ['report-period-tab', tab.id === currentReportPeriod ? 'active' : ''],
                 text: tab.label
             });
             
             tabEl.addEventListener('click', () => {
                 // Update current period
-                currentPeriod = tab.id;
+                currentReportPeriod = tab.id;
                 
                 // Remove active class from all tabs
                 periodSelector.querySelectorAll('.report-period-tab').forEach(el => {
@@ -2788,20 +3457,25 @@ export class StatsView extends ItemView {
                 reportContainer.empty();
                 
                 // Render appropriate report
-                if (currentPeriod === 'daily') {
-                    this.renderDailyReport(reportContainer);
-                } else if (currentPeriod === 'monthly') {
+                // if (currentReportPeriod === 'daily') {
+                //     this.renderDailyReport(reportContainer);
+                // } else 
+                if (currentReportPeriod === 'monthly') {
                     this.renderMonthlyReport(reportContainer);
-                } else if (currentPeriod === 'yearly') {
+                } else if (currentReportPeriod === 'yearly') {
                     this.renderYearlyReport(reportContainer);
-                } else if (currentPeriod === 'category') {
+                } else if (currentReportPeriod === 'category') {
                     this.renderCategoryReport(reportContainer);
-                }
+                } else if (currentReportPeriod === 'account') {
+                     this.renderAccountReport(reportContainer);
+                 } else if (currentReportPeriod === 'tag') {
+                     this.renderTagReport(reportContainer);
+                 }
             });
         });
         
         // Create report container
-        const reportContainer = containerEl.createDiv('report-container');
+        const reportContainer = containerEl.createDiv('report-content-container');
         
         // Render monthly report by default
         this.renderMonthlyReport(reportContainer);
@@ -2816,47 +3490,45 @@ export class StatsView extends ItemView {
     }
 
     // Dummy renderExpensePieChart for structure - replace with actual implementation if needed
-    private renderExpensePieChart(containerEl: HTMLElement, transactions: Transaction[]): void {
-        const chartContainer = containerEl.createDiv('expense-pie-chart-container');
-        
-        // Filter for expense transactions
-        const expenseTransactions = transactions.filter(t => t.type === 'expense');
-        if (expenseTransactions.length === 0) {
-            chartContainer.createEl('p', { text: 'No expense data for pie chart.' });
+     /**
+     * Renders a pie chart for category breakdown (income or expense).
+     */
+    private renderCategoryPieChart(
+        containerEl: HTMLElement, 
+        categoryData: { name: string, amount: number }[], // Expects sorted data with names and amounts
+        totalAmount: number,
+        title: string = 'Breakdown' // Optional title override
+    ): void {
+        const chartOuterContainer = containerEl.createDiv('pie-chart-outer-container');
+        // chartOuterContainer.createEl('h5', { text: title }); // Title is usually provided by the calling context (e.g., h4)
+
+        const chartContainer = chartOuterContainer.createDiv('category-pie-chart-container');
+
+        if (categoryData.length === 0 || totalAmount <= 0) {
+            chartContainer.createEl('p', { text: 'No data for pie chart.' });
             return;
         }
 
-        // Group expenses by category
-        const expensesByCategory: Record<string, number> = {};
-        const categories = flattenHierarchy(this.plugin.settings.categories);
-        let totalExpenses = 0;
-
-        expenseTransactions.forEach(transaction => {
-            let categoryName = 'Uncategorized';
-            if (transaction.categoryId) {
-                const category = categories.find(c => c.id === transaction.categoryId);
-                if (category) categoryName = category.name;
+        // Limit slices shown? (e.g., top 9 + "Other")
+        const maxSlices = 10;
+        let displayData = categoryData;
+        let otherAmount = 0;
+        if (categoryData.length > maxSlices) {
+            displayData = categoryData.slice(0, maxSlices - 1);
+            otherAmount = categoryData.slice(maxSlices - 1).reduce((sum, cat) => sum + cat.amount, 0);
+            if (otherAmount > 0) {
+                displayData.push({ name: 'Other', amount: otherAmount });
             }
-            expensesByCategory[categoryName] = (expensesByCategory[categoryName] || 0) + transaction.amount;
-            totalExpenses += transaction.amount;
-        });
-
-        if (totalExpenses <= 0) {
-             chartContainer.createEl('p', { text: 'No expense value for pie chart.' });
-            return;
         }
-
-        // Sort categories by amount, descending
-        const sortedCategories = Object.entries(expensesByCategory).sort(([, a], [, b]) => b - a);
-
+        
         // Generate CSS conic gradient string
         let gradientString = 'conic-gradient(';
         let currentPercentage = 0;
-        const colors = this.generateCategoryColors(sortedCategories.length); // Helper to get distinct colors
+        const colors = this.generateCategoryColors(displayData.length); // Helper to get distinct colors
         
-        sortedCategories.forEach(([_, amount], index) => {
-            const percentage = (amount / totalExpenses) * 100;
-            const color = colors[index];
+        displayData.forEach(({ name, amount }, index) => {
+            const percentage = (amount / totalAmount) * 100;
+            const color = colors[index % colors.length]; // Cycle colors if needed
             gradientString += `${color} ${currentPercentage}% ${currentPercentage + percentage}%, `;
             currentPercentage += percentage;
         });
@@ -2867,16 +3539,18 @@ export class StatsView extends ItemView {
         // Create pie element
         const pieElement = chartContainer.createDiv({ cls: 'pie-chart' });
         pieElement.style.background = gradientString;
+        // Add a tooltip showing the total?
+        pieElement.title = `Total: ¥${totalAmount.toFixed(2)}`;
         
-        // Create legend
-        const legendContainer = chartContainer.createDiv({ cls: 'pie-chart-legend' });
-        sortedCategories.forEach(([categoryName, amount], index) => {
-            const percentage = (amount / totalExpenses) * 100;
-            const legendItem = legendContainer.createDiv({ cls: 'legend-item' });
-            const colorBox = legendItem.createDiv({ cls: 'legend-color' });
-            colorBox.style.backgroundColor = colors[index];
-            legendItem.createEl('span', { text: `${categoryName}: ¥${amount.toFixed(2)} (${percentage.toFixed(1)}%)` });
-        });
+        // Create legend (optional, table often serves this purpose)
+        // const legendContainer = chartContainer.createDiv({ cls: 'pie-chart-legend' });
+        // displayData.forEach(({ name, amount }, index) => {
+        //     const percentage = (amount / totalAmount) * 100;
+        //     const legendItem = legendContainer.createDiv({ cls: 'legend-item' });
+        //     const colorBox = legendItem.createDiv({ cls: 'legend-color' });
+        //     colorBox.style.backgroundColor = colors[index % colors.length];
+        //     legendItem.createEl('span', { text: `${name}: ¥${amount.toFixed(2)} (${percentage.toFixed(1)}%)` });
+        // });
     }
     
     /**
@@ -2885,73 +3559,418 @@ export class StatsView extends ItemView {
      */
     private generateCategoryColors(count: number): string[] {
         const colors: string[] = [];
-        const hueStep = 360 / count;
+         // Use a base hue and rotate, varying lightness/saturation slightly for more distinction
+         const baseHue = 200; // Start somewhere like blue/teal
+         const hueStep = count > 1 ? 360 / count : 0; 
         for (let i = 0; i < count; i++) {
-            const hue = i * hueStep;
-            // Use fixed saturation and lightness for consistency, adjust as needed
-            colors.push(`hsl(${hue}, 70%, 60%)`); 
+            const hue = (baseHue + i * hueStep) % 360;
+             // Alternate saturation/lightness slightly
+            const saturation = 60 + (i % 2) * 10; // e.g., 60% or 70%
+            const lightness = 55 + (i % 3) * 5; // e.g., 55%, 60%, 65%
+            colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`); 
         }
+        // If only one color, make it reasonably distinct
+         if (count === 1) {
+             return ['hsl(210, 70%, 60%)']; // A standard blueish color
+         }
         return colors;
     }
 
-    // --- Placeholder Report Rendering Methods (Now accept transactions) ---
-    private renderDailyReport(containerEl: HTMLElement): void {
-        containerEl.createEl('p', { text: 'Daily report rendering is not yet implemented.' });
+     /** Helper to add a standard Income/Expense legend */
+     private addIncomeExpenseLegend(containerEl: HTMLElement): void {
+        const legend = containerEl.createDiv({cls: 'chart-legend'});
+        const incomeLegend = legend.createDiv({cls: 'legend-item'});
+        incomeLegend.createDiv({cls: 'legend-color income-color'});
+        incomeLegend.createEl('span', { text: 'Income' });
+        const expenseLegend = legend.createDiv({cls: 'legend-item'});
+        expenseLegend.createDiv({cls: 'legend-color expense-color'});
+        expenseLegend.createEl('span', { text: 'Expenses' });
     }
 
+    // --- Report Rendering Methods ---
+
+    /** Base class or function for generating reports? Could abstract common parts. */
+    
+    /** Renders Monthly Report */
     private renderMonthlyReport(containerEl: HTMLElement): void {
-        containerEl.createEl('p', { text: 'Monthly report rendering is not yet implemented.' });
+         containerEl.createEl('h4', { text: 'Monthly Financial Report' });
+         
+         // Get filtered transactions (respecting main filters)
+        const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
+        
+        if (filteredTransactions.length === 0) {
+            containerEl.createEl('p', { text: 'No transactions found for the selected filters.' });
+            return;
+        }
+         
+        // Group by month
+        const transactionsByMonth: Record<string, Transaction[]> = {};
+        const uniqueMonths = [...new Set(filteredTransactions.map(t => moment(normalizeTransactionDate(t.date)).format('YYYY-MM')))].sort().reverse(); // Newest first
+
+        uniqueMonths.forEach(monthKey => {
+            transactionsByMonth[monthKey] = [];
+        });
+        filteredTransactions.forEach(t => {
+             const monthKey = moment(normalizeTransactionDate(t.date)).format('YYYY-MM');
+             if (transactionsByMonth[monthKey]) {
+                 transactionsByMonth[monthKey].push(t);
+             }
+        });
+
+        // Create table
+        const table = containerEl.createEl('table', { cls: 'report-table monthly-report-table' });
+        const thead = table.createEl('thead');
+        const hr = thead.createEl('tr');
+        hr.createEl('th', { text: 'Month' });
+        hr.createEl('th', { text: 'Income' });
+        hr.createEl('th', { text: 'Expenses' });
+        hr.createEl('th', { text: 'Net Balance' });
+        hr.createEl('th', { text: 'Transactions' });
+        hr.createEl('th', { text: 'Top Expense Cat.' }); // Example additional column
+
+        const tbody = table.createEl('tbody');
+        let totalIncome = 0, totalExpenses = 0, totalCount = 0;
+
+        uniqueMonths.forEach(monthKey => {
+            const monthTransactions = transactionsByMonth[monthKey];
+            const totals = this.calculateTotals(monthTransactions);
+            totalIncome += totals.income;
+            totalExpenses += totals.expenses;
+            totalCount += monthTransactions.length;
+
+             // Find top expense category for the month
+             let topExpenseCat = '-';
+             if (totals.expenses > 0) {
+                 const expenses = monthTransactions.filter(t => t.type === 'expense');
+                 const cats = flattenHierarchy(this.plugin.settings.categories);
+                 const expByCat: Record<string, number> = {};
+                 expenses.forEach(t => {
+                     const catName = cats.find(c => c.id === t.categoryId)?.name || 'Uncategorized';
+                     expByCat[catName] = (expByCat[catName] || 0) + t.amount;
+                 });
+                 const sortedExp = Object.entries(expByCat).sort((a, b) => b[1] - a[1]);
+                 if (sortedExp.length > 0) {
+                     topExpenseCat = `${sortedExp[0][0]} (¥${sortedExp[0][1].toFixed(0)})`;
+                 }
+             }
+
+            const row = tbody.createEl('tr');
+            row.createEl('td', { text: moment(monthKey).format('MMM YYYY') });
+            row.createEl('td', { text: `¥${totals.income.toFixed(2)}`, cls: 'income-value' });
+            row.createEl('td', { text: `¥${totals.expenses.toFixed(2)}`, cls: 'expense-value' });
+             const balanceCell = row.createEl('td', { text: `¥${totals.balance.toFixed(2)}` });
+             balanceCell.addClass(totals.balance >= 0 ? 'positive' : 'negative');
+            row.createEl('td', { text: monthTransactions.length.toString() });
+            row.createEl('td', { text: topExpenseCat });
+        });
+
+        // Add total row
+         const tfoot = table.createEl('tfoot');
+         const totalRow = tfoot.createEl('tr');
+         totalRow.createEl('th', { text: 'Total / Avg' });
+         totalRow.createEl('th', { text: `¥${totalIncome.toFixed(2)}` });
+         totalRow.createEl('th', { text: `¥${totalExpenses.toFixed(2)}` });
+         const totalBalance = totalIncome - totalExpenses;
+         const totalBalCell = totalRow.createEl('th', { text: `¥${totalBalance.toFixed(2)}` });
+         totalBalCell.addClass(totalBalance >= 0 ? 'positive' : 'negative');
+         totalRow.createEl('th', { text: totalCount.toString() });
+         totalRow.createEl('th', { text: '-' }); // No total for top category
     }
 
+    /** Renders Yearly Report */
     private renderYearlyReport(containerEl: HTMLElement): void {
-        containerEl.createEl('p', { text: 'Yearly report rendering is not yet implemented.' });
+         containerEl.createEl('h4', { text: 'Yearly Financial Report' });
+         
+        const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
+        if (filteredTransactions.length === 0) {
+            containerEl.createEl('p', { text: 'No transactions found.' }); return;
+        }
+         
+        const transactionsByYear: Record<string, Transaction[]> = {};
+        const uniqueYears = [...new Set(filteredTransactions.map(t => moment(normalizeTransactionDate(t.date)).format('YYYY')))].sort().reverse(); // Newest first
+
+        uniqueYears.forEach(yearKey => { transactionsByYear[yearKey] = []; });
+        filteredTransactions.forEach(t => {
+             const yearKey = moment(normalizeTransactionDate(t.date)).format('YYYY');
+             if (transactionsByYear[yearKey]) transactionsByYear[yearKey].push(t);
+        });
+
+        const table = containerEl.createEl('table', { cls: 'report-table yearly-report-table' });
+        const thead = table.createEl('thead');
+        const hr = thead.createEl('tr');
+        hr.createEl('th', { text: 'Year' });
+        hr.createEl('th', { text: 'Income' });
+        hr.createEl('th', { text: 'Expenses' });
+        hr.createEl('th', { text: 'Net Balance' });
+        hr.createEl('th', { text: 'Avg Monthly Bal' }); // Example extra column
+        hr.createEl('th', { text: 'Transactions' });
+
+        const tbody = table.createEl('tbody');
+        let grandTotalIncome = 0, grandTotalExpenses = 0, grandTotalCount = 0;
+
+        uniqueYears.forEach(yearKey => {
+            const yearTransactions = transactionsByYear[yearKey];
+            const totals = this.calculateTotals(yearTransactions);
+            grandTotalIncome += totals.income;
+            grandTotalExpenses += totals.expenses;
+            grandTotalCount += yearTransactions.length;
+
+             // Calculate avg monthly balance for the year
+             const monthsInYear = new Set(yearTransactions.map(t => moment(normalizeTransactionDate(t.date)).format('YYYY-MM'))).size;
+             const avgMonthlyBal = monthsInYear > 0 ? totals.balance / monthsInYear : 0;
+
+            const row = tbody.createEl('tr');
+            row.createEl('td', { text: yearKey });
+            row.createEl('td', { text: `¥${totals.income.toFixed(2)}`, cls: 'income-value' });
+            row.createEl('td', { text: `¥${totals.expenses.toFixed(2)}`, cls: 'expense-value' });
+            const balanceCell = row.createEl('td', { text: `¥${totals.balance.toFixed(2)}` });
+            balanceCell.addClass(totals.balance >= 0 ? 'positive' : 'negative');
+             const avgBalCell = row.createEl('td', { text: `¥${avgMonthlyBal.toFixed(2)}` });
+             avgBalCell.addClass(avgMonthlyBal >= 0 ? 'positive' : 'negative');
+            row.createEl('td', { text: yearTransactions.length.toString() });
+        });
+
+         const tfoot = table.createEl('tfoot');
+         const totalRow = tfoot.createEl('tr');
+         totalRow.createEl('th', { text: 'Overall Total / Avg' });
+         totalRow.createEl('th', { text: `¥${grandTotalIncome.toFixed(2)}` });
+         totalRow.createEl('th', { text: `¥${grandTotalExpenses.toFixed(2)}` });
+         const grandTotalBalance = grandTotalIncome - grandTotalExpenses;
+         const totalBalCell = totalRow.createEl('th', { text: `¥${grandTotalBalance.toFixed(2)}` });
+         totalBalCell.addClass(grandTotalBalance >= 0 ? 'positive' : 'negative');
+         // Avg monthly balance over the entire period shown
+         const totalMonthsOverall = new Set(filteredTransactions.map(t => moment(normalizeTransactionDate(t.date)).format('YYYY-MM'))).size;
+         const overallAvgMonthlyBal = totalMonthsOverall > 0 ? grandTotalBalance / totalMonthsOverall : 0;
+         const overallAvgCell = totalRow.createEl('th', { text: `¥${overallAvgMonthlyBal.toFixed(2)}`});
+         overallAvgCell.addClass(overallAvgMonthlyBal >= 0 ? 'positive' : 'negative');
+         totalRow.createEl('th', { text: grandTotalCount.toString() });
     }
 
+    /** Renders Category Report */
     private renderCategoryReport(containerEl: HTMLElement): void {
-        containerEl.createEl('p', { text: 'Category report rendering is not yet implemented.' });
+         containerEl.createEl('h4', { text: 'Category Financial Report' });
+
+         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
+         if (filteredTransactions.length === 0) {
+             containerEl.createEl('p', { text: 'No transactions found.' }); return;
+         }
+
+         const categories = flattenHierarchy(this.plugin.settings.categories);
+         const categoryData: Record<string, { income: number, expense: number, count: number }> = {};
+
+         // Initialize
+         categories.forEach(cat => { categoryData[cat.id] = { income: 0, expense: 0, count: 0 }; });
+         categoryData['uncategorized'] = { income: 0, expense: 0, count: 0 }; // For uncategorized
+
+         filteredTransactions.forEach(t => {
+             const catId = t.categoryId || 'uncategorized';
+             if (!categoryData[catId]) { // Handle potentially unknown category IDs from data
+                 categoryData[catId] = { income: 0, expense: 0, count: 0 }; 
+             }
+             if (t.type === 'income') categoryData[catId].income += t.amount;
+             else categoryData[catId].expense += t.amount;
+             categoryData[catId].count++;
+         });
+
+         const tableData = Object.entries(categoryData).map(([id, data]) => ({
+             id: id,
+             name: id === 'uncategorized' ? 'Uncategorized' : (categories.find(c => c.id === id)?.name || `Unknown (${id})`),
+             ...data,
+             net: data.income - data.expense
+         })).filter(d => d.count > 0); // Only show categories with transactions
+
+          if (tableData.length === 0) {
+             containerEl.createEl('p', { text: 'No categorized transactions found.' }); return;
+         }
+
+         // Sort by net amount (most positive first) or total amount? Let's try net.
+         tableData.sort((a, b) => b.net - a.net);
+
+         const table = containerEl.createEl('table', { cls: 'report-table category-report-table' });
+         const thead = table.createEl('thead');
+         const hr = thead.createEl('tr');
+         hr.createEl('th', { text: 'Category' });
+         hr.createEl('th', { text: 'Income' });
+         hr.createEl('th', { text: 'Expense' });
+         hr.createEl('th', { text: 'Net' });
+         hr.createEl('th', { text: 'Txns' });
+         hr.createEl('th', { text: 'Avg Txn Net' });
+
+         const tbody = table.createEl('tbody');
+         let totalIncome = 0, totalExpenses = 0, totalCount = 0;
+         tableData.forEach(d => {
+             totalIncome += d.income; totalExpenses += d.expense; totalCount += d.count;
+             const row = tbody.createEl('tr');
+             row.createEl('td', { text: d.name });
+             row.createEl('td', { text: `¥${d.income.toFixed(2)}`, cls: 'income-value' });
+             row.createEl('td', { text: `¥${d.expense.toFixed(2)}`, cls: 'expense-value' });
+             const netCell = row.createEl('td', { text: `¥${d.net.toFixed(2)}` });
+             netCell.addClass(d.net >= 0 ? 'positive' : 'negative');
+             row.createEl('td', { text: d.count.toString() });
+             const avgNet = d.count > 0 ? d.net / d.count : 0;
+             const avgNetCell = row.createEl('td', { text: `¥${avgNet.toFixed(2)}` });
+             avgNetCell.addClass(avgNet >= 0 ? 'positive' : 'negative');
+         });
+
+         const tfoot = table.createEl('tfoot');
+         const totalRow = tfoot.createEl('tr');
+         totalRow.createEl('th', { text: 'Total' });
+         totalRow.createEl('th', { text: `¥${totalIncome.toFixed(2)}` });
+         totalRow.createEl('th', { text: `¥${totalExpenses.toFixed(2)}` });
+         const totalNet = totalIncome - totalExpenses;
+         const totalNetCell = totalRow.createEl('th', { text: `¥${totalNet.toFixed(2)}` });
+         totalNetCell.addClass(totalNet >= 0 ? 'positive' : 'negative');
+         totalRow.createEl('th', { text: totalCount.toString() });
+          const totalAvgNet = totalCount > 0 ? totalNet / totalCount : 0;
+          const totalAvgNetCell = totalRow.createEl('th', { text: `¥${totalAvgNet.toFixed(2)}` });
+          totalAvgNetCell.addClass(totalAvgNet >= 0 ? 'positive' : 'negative');
     }
+    
+     /** Renders Account Report */
+    private renderAccountReport(containerEl: HTMLElement): void {
+         containerEl.createEl('h4', { text: 'Account Financial Report' });
+
+         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
+         if (filteredTransactions.length === 0) {
+             containerEl.createEl('p', { text: 'No transactions found.' }); return;
+         }
+
+         const accounts = flattenHierarchy(this.plugin.settings.accounts);
+         const accountData: Record<string, { income: number, expense: number, count: number }> = {};
+
+         accounts.forEach(acc => { accountData[acc.id] = { income: 0, expense: 0, count: 0 }; });
+         accountData['unassigned'] = { income: 0, expense: 0, count: 0 }; // For transactions without an account
+
+         filteredTransactions.forEach(t => {
+             const accId = t.accountId || 'unassigned';
+             if (!accountData[accId]) { // Handle unknown account IDs
+                 accountData[accId] = { income: 0, expense: 0, count: 0 }; 
+             }
+             if (t.type === 'income') accountData[accId].income += t.amount;
+             else accountData[accId].expense += t.amount;
+             accountData[accId].count++;
+         });
+
+         const tableData = Object.entries(accountData).map(([id, data]) => ({
+             id: id,
+             name: id === 'unassigned' ? 'Unassigned' : (accounts.find(a => a.id === id)?.name || `Unknown (${id})`),
+             ...data,
+             net: data.income - data.expense
+         })).filter(d => d.count > 0);
+
+         if (tableData.length === 0) {
+             containerEl.createEl('p', { text: 'No transactions assigned to accounts found.' }); return;
+         }
+
+         tableData.sort((a, b) => b.net - a.net); // Sort by net contribution
+
+         const table = containerEl.createEl('table', { cls: 'report-table account-report-table' });
+         const thead = table.createEl('thead');
+         const hr = thead.createEl('tr');
+         hr.createEl('th', { text: 'Account' });
+         hr.createEl('th', { text: 'Income' });
+         hr.createEl('th', { text: 'Expense' });
+         hr.createEl('th', { text: 'Net Flow' });
+         hr.createEl('th', { text: 'Txns' });
+
+         const tbody = table.createEl('tbody');
+         let totalIncome = 0, totalExpenses = 0, totalCount = 0;
+         tableData.forEach(d => {
+             totalIncome += d.income; totalExpenses += d.expense; totalCount += d.count;
+             const row = tbody.createEl('tr');
+             row.createEl('td', { text: d.name });
+             row.createEl('td', { text: `¥${d.income.toFixed(2)}`, cls: 'income-value' });
+             row.createEl('td', { text: `¥${d.expense.toFixed(2)}`, cls: 'expense-value' });
+             const netCell = row.createEl('td', { text: `¥${d.net.toFixed(2)}` });
+             netCell.addClass(d.net >= 0 ? 'positive' : 'negative');
+             row.createEl('td', { text: d.count.toString() });
+         });
+
+         const tfoot = table.createEl('tfoot');
+         const totalRow = tfoot.createEl('tr');
+         totalRow.createEl('th', { text: 'Total' });
+         totalRow.createEl('th', { text: `¥${totalIncome.toFixed(2)}` });
+         totalRow.createEl('th', { text: `¥${totalExpenses.toFixed(2)}` });
+         const totalNet = totalIncome - totalExpenses;
+         const totalNetCell = totalRow.createEl('th', { text: `¥${totalNet.toFixed(2)}` });
+         totalNetCell.addClass(totalNet >= 0 ? 'positive' : 'negative');
+         totalRow.createEl('th', { text: totalCount.toString() });
+    }
+
+     /** Renders Tag Report */
+    private renderTagReport(containerEl: HTMLElement): void {
+         containerEl.createEl('h4', { text: 'Tag Financial Report' });
+        
+        // Reuse the logic from renderTagAnalysis for data gathering and display
+         const tagAnalysisContainer = containerEl.createDiv(); // Temporary container
+         this.renderTagAnalysis(tagAnalysisContainer, this.getFilteredTransactionsForCurrentScope());
+         
+         // Move the generated table (if it exists) into the report container
+         const generatedTable = tagAnalysisContainer.querySelector('.tag-analysis-table');
+         if (generatedTable) {
+             // Optionally modify the table class for report styling
+             generatedTable.removeClass('analysis-table');
+             generatedTable.addClass('report-table');
+             containerEl.appendChild(generatedTable);
+         } else {
+              // If renderTagAnalysis didn't create a table (e.g., no tags/data), show message here
+              if (!containerEl.querySelector('p')) { // Avoid duplicate messages
+                 containerEl.createEl('p', { text: 'No tagged transaction data found for this report.' });
+              }
+         }
+         tagAnalysisContainer.remove(); // Clean up temporary container
+    }
+
 
     /**
      * Re-renders the content of the currently active tab.
      */
-    private rerenderCurrentTabContent(containerEl: HTMLElement): void {
-        // Find the main content container for tabs (assuming it exists)
-        const tabContentEl = containerEl.querySelector('.tab-content');
-        if (tabContentEl) {
-            tabContentEl.empty(); // Clear only the tab content area
+     private rerenderCurrentTabContent(containerEl: HTMLElement | null): void {
+        // If the passed container is null, try to find it
+        if (!containerEl) {
+            containerEl = this.contentEl.querySelector('.tab-content');
+        }
+        
+        if (containerEl instanceof HTMLElement) { // Check if it's a valid element
+            containerEl.empty(); // Clear only the tab content area
             
             // Re-render the appropriate tab based on the currentTab state
             switch (this.currentTab) {
                 case StatsTab.OVERVIEW:
-                    this.renderOverviewTab(tabContentEl as HTMLElement);
+                    this.renderOverviewTab(containerEl);
                     break;
                 case StatsTab.TRANSACTIONS:
-                    this.renderTransactionsTab(tabContentEl as HTMLElement);
+                    this.renderTransactionsTab(containerEl);
                     break;
                 case StatsTab.CALENDAR:
-                    this.renderCalendarTab(tabContentEl as HTMLElement);
+                    this.renderCalendarTab(containerEl);
                     break;
                 case StatsTab.ACCOUNTS:
-                    this.renderAccountsTab(tabContentEl as HTMLElement);
+                    this.renderAccountsTab(containerEl);
                     break;
                 case StatsTab.TRENDS:
-                    this.renderTrendsTab(tabContentEl as HTMLElement);
+                    this.renderTrendsTab(containerEl);
                     break;
                 case StatsTab.ANALYSIS:
-                    this.renderAnalysisTab(tabContentEl as HTMLElement);
+                    this.renderAnalysisTab(containerEl);
                     break;
                 case StatsTab.REPORTS:
-                    this.renderReportsTab(tabContentEl as HTMLElement);
+                    this.renderReportsTab(containerEl);
                     break;
+                default:
+                     console.error("Unknown tab selected for rerendering:", this.currentTab);
+                     // Optionally render a default state or error message
+                     containerEl.setText('Error: Could not render selected tab.');
             }
         } else {
-            // Fallback if the structure is different: re-render the whole view
+            // Fallback if the container is still not found: re-render the whole view
             console.warn("Could not find .tab-content, re-rendering entire StatsView");
             this.renderStats();
         }
     }
 
-    private getScopedTransactionsForOverview(): Transaction[] {
-        return this.getFilteredTransactionsForCurrentScope();
-    }
+    // Removed redundant getScopedTransactionsForOverview, use getFilteredTransactionsForCurrentScope directly
+    // private getScopedTransactionsForOverview(): Transaction[] {
+    //     return this.getFilteredTransactionsForCurrentScope();
+    // }
 }
