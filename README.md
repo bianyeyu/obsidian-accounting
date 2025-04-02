@@ -10,9 +10,14 @@ A comprehensive personal accounting plugin for Obsidian that helps you track you
   - Quick entry through commands or ribbon icon
 
 - **Customizable Organization**:
-  - **Accounts**: Create and manage your accounts with support for nested accounts
+  - **Accounts**: Create and manage accounts with support for nested hierarchies
   - **Categories**: Organize income and expense categories in a hierarchical structure
-  - **Tags**: Add tags to transactions with support for nested tags
+  - **Tags**: Add tags to transactions with support for nested hierarchies
+
+- **Flexible Data Storage**:
+  - Save transactions to a dedicated file or integrate with Daily Notes
+  - Customizable transaction template for markdown formatting
+  - Basic budget definition in settings
 
 - **Multi-language Support**:
   - Internationalization with support for multiple languages
@@ -21,33 +26,52 @@ A comprehensive personal accounting plugin for Obsidian that helps you track you
   - Option to manually select preferred language (English/Chinese)
   - Easily extensible for additional languages
 
-- **Enhanced Statistics View**: View detailed statistics about your finances through multiple tabs:
-  - **Overview**: Summary cards and configurable charts
-  - **Transactions**: Detailed transaction list with sorting and filtering
-  - **Calendar**: View transactions by date in a calendar format
-  - **Accounts**: View account balances and transaction history
-  - **Trends**: Visualize your financial patterns over time
+- **Comprehensive Statistics View (`statsView.ts`)**: A dedicated view with multiple tabs for financial insights:
+  - **Advanced Filtering**: Filter data globally across tabs by Date Range (predefined and custom), Transaction Type, Account, and Category
+  - **Overview Tab**: 
+    - Dynamic summary cards (Income, Expenses, Balance, Transaction Count) based on selected scope
+    - Secondary tabs for Daily, Monthly, Yearly, and Custom period views
+    - Daily View: Day selector, daily activity summary, transaction list for the selected day, current asset summary table, budget progress bars
+    - Monthly View: Month selector, daily activity bar chart for the month, net change trend chart, expense breakdown pie chart, expense details table
+    - Yearly View: Year selector, monthly activity bar chart for the year, yearly activity heatmap, net change trend chart, expense breakdown pie chart, expense details table
+    - Custom View: Displays data for the selected custom date range, including activity chart, net change trend, expense breakdown, and expense details table
+  - **Transactions Tab**: Detailed list of all filtered transactions with sorting capabilities. Includes summary cards for the filtered data
+  - **Calendar Tab**: Monthly calendar view showing daily income/expense indicators. Click on a day to view transactions for that day in a popup
+  - **Accounts Tab**: 
+    - Hierarchical view of all accounts with direct balances
+    - Clicking an account shows detailed view with direct balance, total balance (including children), recent direct transactions, and options to view all direct or all rollup transactions
+  - **Trends Tab**:
+    - Visualize financial patterns over time (Monthly, Yearly, Category)
+    - Monthly/Yearly Trends: Bar charts showing Income, Expenses, and Balance per period, plus summary analysis tables
+    - Category Trends: Pie charts and detailed tables for Income or Expense categories within the filtered period
+  - **Analysis Tab**:
+    - Summary cards for the filtered period
+    - Expense breakdown pie chart and data table
+    - Income breakdown pie chart and data table
+    - Cash flow overview table (Totals, Net, Savings Rate, Avg Txn Amounts)
+    - Tag analysis table showing income/expense/net/count per tag
+  - **Reports Tab**: 
+    - Generate tabular reports based on filtered data
+    - Available reports: Monthly, Yearly, Category, Account, Tag summaries
+  - **Responsive Design**: Tab navigation wraps on narrow screens
 
-- **Advanced Filtering**: Filter your data by:
-  - Date range (including custom date ranges)
-  - Transaction type (income/expense)
-  - Account
-  - Category
+## 🚧 Planned / Future Features
 
-- **Flexible Output Options**:
-  - Save transactions to a dedicated file or integrate with Daily Notes
-  - Customizable transaction template for formatting
-
-## 🚧 Planned Features
-
-- **Budgeting**: Set and track budgets for categories
-- **Analysis Tab**: In-depth analysis of spending habits with recommendations
-- **Reports Tab**: Generate detailed financial reports with custom parameters
-- **Slash Command Parsing**: Quick transaction entry through slash commands
-- **Data Import/Export**: Import from and export to CSV/Excel formats
-- **Currency Support**: Add multi-currency support with exchange rates
-- **Mobile Optimization**: Enhanced mobile interface
-- **Data Visualization Enhancements**: Additional chart types and customization options
+- **Data Migration & Format Compatibility**: Handle changes in transaction format settings gracefully to ensure older data remains readable
+- **Recurring Transactions**: Ability to set up scheduled/repeating transactions (e.g., salary, rent)
+- **Transfer Transactions**: Explicit transaction type for transfers between own accounts
+- **Split Transactions**: Ability to assign multiple categories/tags to a single transaction amount
+- **Investment Tracking**: Support for tracking assets like stocks or funds
+- **Multi-Currency Support**: Handle transactions in different currencies with exchange rate considerations
+- **Advanced Budgeting**: Features like budget rollovers, savings goals, etc.
+- **Data Import/Export**: Standard import/export formats (CSV, OFX, QIF)
+- **UI/UX Enhancements**:
+    - Increased chart interactivity (tooltips, click-to-filter)
+    - Enhanced mobile optimization
+    - Improved date/period selectors
+- **Performance Optimization**: Caching or on-demand loading for large datasets
+- **Improved Error Handling**: More specific user feedback on data parsing errors
+- **Slash Command Entry**: Quick transaction entry using slash commands within notes
 
 ## 🔧 Getting Started
 
