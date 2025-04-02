@@ -72,9 +72,14 @@ const zhCN: Translation = {
     DAILY_NOTES_FORMAT: '日记格式',
     TRANSACTION_TEMPLATE: '交易模板',
     LANGUAGE: '语言',
+    OUTPUT_FILE_DESC: '用于保存交易记录的文件',
+    USE_DAILY_NOTES_DESC: '将交易添加到日记中，而不是单个文件',
+    DAILY_NOTES_FORMAT_DESC: '日记文件名格式（仅在启用"使用日记"时使用）',
+    TRANSACTION_TEMPLATE_DESC: '用于格式化交易记录的模板。占位符：{{date}}, {{type}}, {{amount}}, {{account}}, {{category}}, {{tags}}, {{description}}, {{note}}',
+    FOLLOW_SYSTEM: '跟随系统',
     
     // 统计相关
-    STATISTICS: '账务统计',
+    STATISTICS: '统计',
     OVERVIEW: '概览',
     TRANSACTIONS_LIST: '交易记录',
     CALENDAR: '日历',
@@ -97,7 +102,28 @@ const zhCN: Translation = {
     ERROR_INVALID_AMOUNT: '请输入有效金额',
     
     // 成功信息
-    SUCCESS_SAVE_TRANSACTION: '交易添加成功'
+    SUCCESS_SAVE_TRANSACTION: '交易添加成功',
+
+    // 新增键
+    DATA_MANAGEMENT: '数据管理',
+    OUTPUT_FILE_PATH: '输出文件路径',
+    CONFIRM_DELETE: '确认删除',
+    CANNOT_BE_UNDONE: '此操作无法撤销。',
+    NO_ACCOUNTS_CONFIGURED: '尚未配置账户。',
+    NO_TAGS_CONFIGURED: '尚未配置标签。',
+    FEATURE_UNDER_DEVELOPMENT: '功能开发中。',
+
+    // 为账户/标签模态框添加
+    ACCOUNT_NAME_DESC: '为账户输入一个唯一的名称。',
+    ENTER_ACCOUNT_NAME: '例如：银行账户、信用卡',
+    ACCOUNT_DESCRIPTION_DESC: '账户的可选描述。',
+    ENTER_ACCOUNT_DESCRIPTION: '例如：主要支票账户',
+    ACCOUNT_NAME_REQUIRED: '账户名称是必需的。',
+    TAG_DESCRIPTION: '标签描述', // 为保持一致性添加
+    ENTER_TAG_NAME: '例如：食品杂货、旅行',
+    ENTER_TAG_DESCRIPTION: '例如：所有食品购买',
+    TAG_NAME_REQUIRED: '标签名称是必需的。',
+    TAG_DESCRIPTION_DESC: '标签的可选描述。',
 };
 
 export default zhCN;

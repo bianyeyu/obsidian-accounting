@@ -17,6 +17,8 @@ A comprehensive personal accounting plugin for Obsidian that helps you track you
 - **Multi-language Support**:
   - Internationalization with support for multiple languages
   - Currently supported: English and Chinese (简体中文)
+  - Default follows Obsidian system language
+  - Option to manually select preferred language (English/Chinese)
   - Easily extensible for additional languages
 
 - **Enhanced Statistics View**: View detailed statistics about your finances through multiple tabs:

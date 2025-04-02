@@ -1,6 +1,8 @@
-import { App, TFile, normalizePath, moment } from 'obsidian';
-import { Account, Category, Tag, Transaction, findItemById, findItemByName } from './models';
+import { App, TFile, normalizePath } from 'obsidian';
+import { Account, Category, Tag, Transaction, findItemById, findItemByName, BudgetItem, BudgetScope, BudgetPeriod } from './models';
 import { AccountingPluginSettings } from './settings';
+import { I18n } from './locales/i18n';
+import * as moment from 'moment';
 
 /**
  * Format a transaction as a markdown string
@@ -347,4 +349,148 @@ export function findTagByName(tags: Tag[], name: string): Tag | undefined {
  */
 export function findTagById(tags: Tag[], id: string): Tag | undefined {
     return findItemById(tags, id);
+}
+
+/**
+ * Helper to get the display name of the tag, account, or category based on scope and ID.
+ * @param scope The budget scope (Tag, Account, Category).
+ * @param scopeId The ID of the item.
+ * @param allAccounts List of all accounts.
+ * @param allCategories List of all categories.
+ * @param allTags List of all tags.
+ * @param i18nInstance The i18n instance for translations.
+ * @returns The name of the item or an 'Unknown' string.
+ */
+export function getScopeName(
+    scope: BudgetScope,
+    scopeId: string,
+    allAccounts: Account[],
+    allCategories: Category[],
+    allTags: Tag[],
+    i18nInstance: I18n 
+): string {
+    switch (scope) {
+        case BudgetScope.Tag:
+            const tag = findItemById(allTags, scopeId);
+            return tag ? tag.name : i18nInstance.t('UNKNOWN_TAG');
+        case BudgetScope.Account:
+            const account = findItemById(allAccounts, scopeId); 
+            return account ? account.name : i18nInstance.t('UNKNOWN_ACCOUNT');
+        case BudgetScope.Category:
+            const category = findItemById(allCategories, scopeId);
+            return category ? category.name : i18nInstance.t('UNKNOWN_CATEGORY');
+        default:
+            return i18nInstance.t('UNKNOWN_SCOPE');
+    }
+}
+
+/**
+ * Gets the start and end dates for a given budget period relative to today.
+ * @param period The BudgetPeriod enum value.
+ * @returns Object with start and end moment objects.
+ */
+export function getPeriodDateRange(period: BudgetPeriod): { start: moment.Moment, end: moment.Moment } {
+    const now = moment();
+    let start: moment.Moment;
+    let end: moment.Moment;
+
+    switch (period) {
+        case BudgetPeriod.Daily:
+            start = now.clone().startOf('day');
+            end = now.clone().endOf('day');
+            break;
+        case BudgetPeriod.Monthly:
+            start = now.clone().startOf('month');
+            end = now.clone().endOf('month');
+            break;
+        case BudgetPeriod.Quarterly: // Handle Quarterly as defined in the enum
+            start = now.clone().startOf('quarter');
+            end = now.clone().endOf('quarter');
+            break;
+        default:
+            // Handle potential unknown cases or future additions
+            console.warn(`Unknown budget period: ${period}. Defaulting to monthly.`);
+            start = now.clone().startOf('month');
+            end = now.clone().endOf('month');
+            break;
+    }
+    return { start, end };
+}
+
+/**
+ * Gets all descendant IDs (including the parent) for a given item in a hierarchical list.
+ * @param items The hierarchical list (e.g., Categories or Tags).
+ * @param parentId The ID of the parent item.
+ * @returns An array of strings containing the parent ID and all descendant IDs.
+ */
+export function getAllDescendantIds(items: Array<{ id: string, children?: any[] }>, parentId: string): string[] {
+    const ids: string[] = [];
+    const parentItem = findItemById(items, parentId);
+
+    if (!parentItem) {
+        return [parentId]; // Return just the ID if item not found (might be top-level or error)
+    }
+
+    ids.push(parentId); // Add the parent ID itself
+
+    if (parentItem.children) {
+        parentItem.children.forEach(child => {
+            // Find the full child item in the original list to ensure children are fetched correctly
+            const fullChildItem = findItemById(items, child.id); 
+            if(fullChildItem){
+                 ids.push(...getAllDescendantIds(items, fullChildItem.id)); // Recursively get IDs of children
+            } else {
+                 ids.push(child.id); // Add child ID directly if not found (should not happen in consistent data)
+            }
+        });
+    }
+    
+    return [...new Set(ids)]; 
+}
+
+/**
+ * Calculates the total spending for a given budget item within its current period.
+ * @param budget The budget item to calculate spending for.
+ * @param transactions A list of all transactions.
+ * @param allCategories The complete list of categories (for hierarchy lookup).
+ * @param allTags The complete list of tags (for hierarchy lookup).
+ * @returns The total spending amount for the current budget period.
+ */
+export function calculateBudgetSpending(
+    budget: BudgetItem,
+    transactions: Transaction[],
+    allCategories: Category[],
+    allTags: Tag[]
+): number {
+    // Pass the enum directly
+    const { start, end } = getPeriodDateRange(budget.period);
+    let relevantIds: string[] = [];
+
+    if (budget.scope === BudgetScope.Category) {
+        relevantIds = getAllDescendantIds(allCategories, budget.scopeId);
+    } else if (budget.scope === BudgetScope.Tag) {
+        relevantIds = getAllDescendantIds(allTags, budget.scopeId);
+    } else if (budget.scope === BudgetScope.Account) {
+        relevantIds = [budget.scopeId]; 
+    }
+
+    const relevantTransactions = transactions.filter(t => {
+        const transactionDate = moment(t.date, 'YYYY-MM-DD HH:mm');
+        if (t.type !== 'expense' || !transactionDate.isBetween(start, end, undefined, '[]')) {
+            return false;
+        }
+        switch (budget.scope) {
+            case BudgetScope.Category:
+                return relevantIds.includes(t.categoryId);
+            case BudgetScope.Tag:
+                return t.tagIds.some(tagId => relevantIds.includes(tagId));
+            case BudgetScope.Account:
+                return t.accountId === budget.scopeId;
+            default:
+                return false;
+        }
+    });
+
+    const totalSpending = relevantTransactions.reduce((sum, t) => sum + t.amount, 0);
+    return totalSpending;
 } 

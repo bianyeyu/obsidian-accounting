@@ -5,6 +5,7 @@ import { saveTransaction } from './src/utils';
 import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
 import { Account, Category, Tag, Transaction, TransactionType } from './src/models';
 import { I18n } from './src/locales/i18n';
+import { SupportedLocale } from './src/locales';
 
 // Define the accounting icon
 const ACCOUNTING_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -26,7 +27,15 @@ export default class AccountingPlugin extends Plugin {
 
 		// 初始化语言管理器
 		this.i18n = I18n.getInstance();
-		this.i18n.setLocale(this.settings.locale);
+		
+		// If user has set to follow system language, detect Obsidian's language
+		if (this.settings.followSystemLanguage) {
+			const obsidianLocale = this.getObsidianLocale();
+			this.i18n.setLocale(obsidianLocale);
+		} else {
+			// Use the manually selected language
+			this.i18n.setLocale(this.settings.locale);
+		}
 
 		// Initialize events
 		this.events = new Events();
@@ -88,6 +97,22 @@ export default class AccountingPlugin extends Plugin {
 
 		// Add settings tab
 		this.addSettingTab(new AccountingSettingTab(this.app, this));
+	}
+
+	/**
+	 * Get Obsidian's language and map it to supported locales
+	 */
+	public getObsidianLocale(): SupportedLocale {
+		// Get Obsidian's locale from app settings
+		const obsidianLocale = this.app.vault.config?.locale || 'en';
+		
+		// Map Obsidian's locale to our supported locales
+		if (obsidianLocale.startsWith('zh')) {
+			return 'zh-CN';
+		}
+		
+		// Default to English for other languages
+		return 'en';
 	}
 
 	onunload() {

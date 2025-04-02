@@ -34,6 +34,7 @@ export interface Category {
 export interface Tag {
     id: string;
     name: string;
+    description?: string; // Optional description for the tag
     parentId: string | null;
     children?: Tag[];
 }
@@ -51,6 +52,36 @@ export interface Transaction {
     tagIds: string[];
     note?: string;
     description?: string; // Transaction description
+}
+
+/**
+ * Scope of the budget (Tag, Account, or Category)
+ */
+export enum BudgetScope {
+    Tag = 'tag',
+    Account = 'account',
+    Category = 'category',
+}
+
+/**
+ * Time period for the budget
+ */
+export enum BudgetPeriod {
+    Daily = 'daily',
+    Monthly = 'monthly',
+    Quarterly = 'quarterly',
+}
+
+/**
+ * Represents a budget item
+ */
+export interface BudgetItem {
+    id: string;
+    name: string; // Optional name for the budget item
+    scope: BudgetScope;
+    scopeId: string; // ID of the Tag, Account, or Category
+    period: BudgetPeriod;
+    amount: number;
 }
 
 /**
