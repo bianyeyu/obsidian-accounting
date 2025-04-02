@@ -1,0 +1,334 @@
+/* Trends Tab Styles */
+.trend-period-selector {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 10px;
+}
+
+.trend-period-tab {
+    padding: 8px 15px;
+    margin-right: 5px;
+    border: none;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.trend-period-tab:hover {
+    background: var(--background-modifier-hover);
+}
+
+.trend-period-tab.active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.detailed-trends-container {
+    margin-top: 20px;
+}
+
+/* Charts */
+.trends-chart {
+    margin-bottom: 30px;
+}
+
+.trends-chart-grid {
+    display: flex;
+    align-items: flex-end;
+    height: 350px;
+    padding-top: 20px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.trend-period-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+    margin-right: 5px;
+}
+
+.trend-period-label {
+    text-align: center;
+    font-size: 12px;
+    margin-top: 5px;
+    transform: rotate(-45deg);
+    white-space: nowrap;
+}
+
+.trend-bars-container {
+    display: flex;
+    height: 300px;
+    align-items: flex-end;
+    width: 100%;
+}
+
+.trend-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1;
+    height: 100%;
+    margin: 0 2px;
+}
+
+.trend-bar {
+    width: 20px;
+    background-color: var(--background-modifier-border);
+    position: relative;
+    border-radius: 2px 2px 0 0;
+    transition: height 0.3s ease;
+}
+
+.trend-bar.income-bar {
+    background-color: var(--color-green);
+}
+
+.trend-bar.expense-bar {
+    background-color: var(--color-red);
+}
+
+.trend-bar.balance-bar {
+    background-color: #2196f3;
+}
+
+.trend-bar.balance-bar.positive {
+    background-color: #8bc34a;
+}
+
+.trend-bar.balance-bar.negative {
+    background-color: #ff5722;
+}
+
+.trend-bar-value {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.trends-legend {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+}
+
+.legend-color {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    margin-right: 5px;
+}
+
+/* Trend Analysis */
+.trend-analysis-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 5px;
+}
+
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysis-table tr td:first-child {
+    width: 60%;
+    padding: 8px 0;
+}
+
+.analysis-table tr td:last-child {
+    text-align: right;
+    font-weight: bold;
+}
+
+/* Category Breakdown */
+.category-breakdown-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 5px;
+}
+
+.category-breakdown-container {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.pie-chart-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    margin-right: 20px;
+    margin-bottom: 20px;
+}
+
+.pie-segment {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+}
+
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.pie-color-box {
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+    border-radius: 2px;
+}
+
+.pie-legend-text {
+    font-size: 12px;
+}
+
+.category-breakdown-table {
+    flex: 1;
+    min-width: 300px;
+}
+
+.breakdown-header-row, .breakdown-row {
+    display: flex;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.breakdown-header-row {
+    font-weight: bold;
+}
+
+.breakdown-header-cell, .breakdown-cell {
+    flex: 1;
+    padding: 0 5px;
+}
+
+.breakdown-cell:nth-child(2), 
+.breakdown-header-cell:nth-child(2) {
+    text-align: right;
+}
+
+.breakdown-cell:nth-child(3), 
+.breakdown-header-cell:nth-child(3) {
+    text-align: right;
+    position: relative;
+}
+
+.percentage-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    background-color: var(--interactive-accent);
+    z-index: 1;
+}
+
+/* Custom Date Range */
+.custom-date-selector {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.custom-start-date, .custom-end-date {
+    display: flex;
+    align-items: center;
+}
+
+.custom-start-date label, .custom-end-date label {
+    margin-right: 10px;
+    white-space: nowrap;
+}
+
+.custom-date-selector input[type="date"] {
+    padding: 6px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+}
+
+.custom-date-apply {
+    padding: 6px 15px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.custom-date-apply:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.period-summary {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 5px;
+}
+
+.period-summary-table {
+    width: 100%;
+}
+
+.period-summary-table tr td:first-child {
+    width: 40%;
+    padding: 8px 0;
+}
+
+.period-summary-table tr td:last-child {
+    text-align: right;
+    font-weight: bold;
+}
+
+.balance-row {
+    border-top: 1px solid var(--background-modifier-border);
+    font-size: 1.1em;
+}
+
+/* Set colors for pie chart */
+:root {
+    --category-color-0: #e57373;
+    --category-color-1: #81c784;
+    --category-color-2: #64b5f6;
+    --category-color-3: #ffb74d;
+    --category-color-4: #9575cd;
+}
+
+/* Additional Color Overrides */
+.income-value {
+    color: var(--color-green);
+}
+
+.expense-value {
+    color: var(--color-red);
+}
+
+.positive {
+    color: var(--color-green);
+}
+
+.negative {
+    color: var(--color-red);
+} 

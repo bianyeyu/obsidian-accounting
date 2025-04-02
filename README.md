@@ -1,94 +1,176 @@
-# Obsidian Sample Plugin
+# Obsidian Personal Accounting
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+A comprehensive personal accounting plugin for Obsidian that helps you track your income and expenses directly within your vault. Manage your finances with hierarchical accounts, categories, and tags while viewing detailed statistics and trends.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## ✨ Implemented Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- **Transaction Management**: 
+  - Add income and expense transactions with detailed information
+  - Support for date, time, amount, account, category, tags, description, and notes
+  - Quick entry through commands or ribbon icon
 
-## First time developing plugins?
+- **Customizable Organization**:
+  - **Accounts**: Create and manage your accounts with support for nested accounts
+  - **Categories**: Organize income and expense categories in a hierarchical structure
+  - **Tags**: Add tags to transactions with support for nested tags
 
-Quick starting guide for new plugin devs:
+- **Multi-language Support**:
+  - Internationalization with support for multiple languages
+  - Currently supported: English and Chinese (简体中文)
+  - Easily extensible for additional languages
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+- **Enhanced Statistics View**: View detailed statistics about your finances through multiple tabs:
+  - **Overview**: Summary cards and configurable charts
+  - **Transactions**: Detailed transaction list with sorting and filtering
+  - **Calendar**: View transactions by date in a calendar format
+  - **Accounts**: View account balances and transaction history
+  - **Trends**: Visualize your financial patterns over time
 
-## Releasing new releases
+- **Advanced Filtering**: Filter your data by:
+  - Date range (including custom date ranges)
+  - Transaction type (income/expense)
+  - Account
+  - Category
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- **Flexible Output Options**:
+  - Save transactions to a dedicated file or integrate with Daily Notes
+  - Customizable transaction template for formatting
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## 🚧 Planned Features
 
-## Adding your plugin to the community plugin list
+- **Budgeting**: Set and track budgets for categories
+- **Analysis Tab**: In-depth analysis of spending habits with recommendations
+- **Reports Tab**: Generate detailed financial reports with custom parameters
+- **Slash Command Parsing**: Quick transaction entry through slash commands
+- **Data Import/Export**: Import from and export to CSV/Excel formats
+- **Currency Support**: Add multi-currency support with exchange rates
+- **Mobile Optimization**: Enhanced mobile interface
+- **Data Visualization Enhancements**: Additional chart types and customization options
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+## 🔧 Getting Started
 
-## How to use
+1. Install the plugin from the Obsidian Community Plugins browser or manually
+2. Configure your accounts, categories, and tags in the plugin settings
+3. Start adding transactions using the "Add Transaction" command or ribbon icon
+4. View your financial statistics using the "Open Accounting Statistics" command
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+## 📝 Usage
 
-## Manually installing the plugin
+### Adding Transactions
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+You can add transactions in two ways:
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+1. **Using the Command Palette**: Open the command palette (Ctrl/Cmd+P) and search for "Add Transaction"
+2. **Using the Ribbon Icon**: Click the accounting icon in the ribbon
 
-## Funding URL
+When adding a transaction, you'll need to provide:
+- Date and Time
+- Type (Income or Expense)
+- Amount
+- Account
+- Category
+- Tags (optional)
+- Description
+- Note (optional)
 
-You can include funding URLs where people who use your plugin can financially support it.
+### Viewing Statistics
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+To view your financial statistics:
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+1. **Using the Command Palette**: Open the command palette (Ctrl/Cmd+P) and search for "Open Accounting Statistics"
+2. **Using the Ribbon Icon**: Click the chart icon in the ribbon (if available)
+
+The statistics view provides multiple tabs:
+
+#### Overview Tab
+- Filter controls for date range, transaction type, account, and category
+- Summary cards showing total income, expenses, balance, and transaction count
+- Configurable charts (monthly, yearly, and category breakdowns)
+
+#### Transactions Tab
+- Complete list of transactions matching your filter criteria
+- Detailed information for each transaction
+
+#### Calendar Tab
+- View transactions organized by date in a calendar format
+- Quick overview of daily income and expenses
+
+#### Accounts Tab
+- View all accounts with their current balances
+- See hierarchical structure of nested accounts
+
+#### Trends Tab
+- Visualize your financial trends over time with interactive charts
+- View monthly trends with income, expense, and balance data
+
+### Managing Accounts, Categories, and Tags
+
+In the plugin settings, you can:
+- Add, edit, and delete accounts
+- Add, edit, and delete income and expense categories
+- Add, edit, and delete tags
+- Create nested hierarchies for each of these elements
+
+## ⚙️ Configuration
+
+The plugin settings allow you to configure:
+
+- **Language**: Choose your preferred display language
+- **Output File**: The file where transactions will be saved if not using daily notes
+- **Use Daily Notes**: Option to add transactions to daily notes instead of a single file
+- **Daily Notes Format**: Format for daily notes filenames
+- **Transaction Template**: Template for formatting transactions in markdown
+
+## 📋 Transaction Format
+
+By default, transactions are formatted as:
+
+```
+- {{date}} | {{type}} | {{amount}} | {{account}} | {{category}} | {{tags}} | {{description}} {{#note}}| {{note}}{{/note}}
 ```
 
-If you have multiple URLs, you can also do:
+You can customize this format in the plugin settings.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+## 📜 License
 
-## API Documentation
+This plugin is licensed under the MIT License.
 
-See https://github.com/obsidianmd/obsidian-api
+## 🤝 Support and Contribution
+
+If you encounter any issues or have suggestions for improvements, please open an issue on the GitHub repository.
+
+Contributions are welcome! Please feel free to submit a pull request.
+
+---
+
+## For Developers
+
+### Development Setup
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Run development build: `npm run dev`
+
+### Building the Plugin
+
+- Run `npm run build` to create a production build
+
+### Releasing New Versions
+
+1. Update `manifest.json` with your new version number and minimum Obsidian version
+2. Update `versions.json` file with compatibility information
+3. Create new GitHub release using your version number as the "Tag version"
+4. Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments
+5. Publish the release
+
+You can simplify the version bump process by running:
+- `npm version patch` for bug fixes
+- `npm version minor` for new features
+- `npm version major` for breaking changes
+
+### Adding Your Plugin to the Community Plugin List
+
+1. Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines)
+2. Publish an initial version
+3. Make sure you have a `README.md` file in the root of your repo
+4. Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin

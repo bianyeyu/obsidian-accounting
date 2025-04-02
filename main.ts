@@ -1,85 +1,98 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, addIcon, normalizePath, Events } from 'obsidian';
+import { AccountingPluginSettings, AccountingSettingTab, DEFAULT_SETTINGS } from './src/settings';
+import { TransactionModal } from './src/transactionModal';
+import { saveTransaction } from './src/utils';
+import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
+import { Account, Category, Tag, Transaction, TransactionType } from './src/models';
+import { I18n } from './src/locales/i18n';
 
-// Remember to rename these classes and interfaces!
+// Define the accounting icon
+const ACCOUNTING_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="2" y="3" width="20" height="18" rx="2" ry="2"></rect>
+  <line x1="2" y1="8" x2="22" y2="8"></line>
+  <line x1="12" y1="12" x2="18" y2="12"></line>
+  <line x1="12" y1="16" x2="18" y2="16"></line>
+  <line x1="6" y1="12" x2="8" y2="12"></line>
+  <line x1="6" y1="16" x2="8" y2="16"></line>
+</svg>`;
 
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class AccountingPlugin extends Plugin {
+	settings: AccountingPluginSettings;
+	events: Events;
+	i18n: I18n; // 添加I18n实例
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		// 初始化语言管理器
+		this.i18n = I18n.getInstance();
+		this.i18n.setLocale(this.settings.locale);
+
+		// Initialize events
+		this.events = new Events();
+
+		// Register the accounting icon
+		addIcon('accounting', ACCOUNTING_ICON);
+
+		// Load CSS styles
+		this.loadStyles();
+
+		// Add ribbon icon
+		this.addRibbonIcon('accounting', this.i18n.t('ADD_TRANSACTION'), (evt: MouseEvent) => {
+			this.openTransactionModal();
 		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
+		// Add command to open transaction modal
 		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
+			id: 'open-transaction-modal',
+			name: this.i18n.t('ADD_TRANSACTION'),
 			callback: () => {
-				new SampleModal(this.app).open();
+				this.openTransactionModal();
 			}
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		// Add slash command for quick transaction entry
+		this.addCommand({
+			id: 'quick-transaction',
+			name: this.i18n.t('TRANSACTION'),
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				// Get the current line
+				const cursor = editor.getCursor();
+				const line = editor.getLine(cursor.line);
+				
+				// Check if the line starts with a slash command
+				if (line.startsWith('/accounting') || line.startsWith('/transaction')) {
+					// Parse the command
+					this.handleSlashCommand(line, editor, view);
+				} else {
+					// Open the transaction modal
+					this.openTransactionModal();
 				}
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		// Register the stats view
+		this.registerView(
+			STATS_VIEW_TYPE,
+			(leaf) => new StatsView(leaf, this)
+		);
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+		// Add command to open stats view
+		this.addCommand({
+			id: 'open-accounting-stats',
+			name: this.i18n.t('STATISTICS'),
+			callback: () => {
+				this.activateStatsView();
+			}
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// Add settings tab
+		this.addSettingTab(new AccountingSettingTab(this.app, this));
 	}
 
 	onunload() {
-
+		// Clean up
+		this.app.workspace.detachLeavesOfType(STATS_VIEW_TYPE);
 	}
 
 	async loadSettings() {
@@ -89,46 +102,96 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	/**
+	 * Open the transaction modal
+	 */
+	private openTransactionModal() {
+		const modal = new TransactionModal(
+			this.app,
+			this,
+			(transaction) => {
+				// Save the transaction
+				saveTransaction(this.app, transaction, this.settings)
+					.then(() => {
+						new Notice(this.i18n.t('SUCCESS_SAVE_TRANSACTION'));
+						// Trigger transaction added event
+						this.events.trigger('transaction-added', transaction);
+					})
+					.catch((error) => {
+						console.error('Error saving transaction:', error);
+						new Notice(this.i18n.t('ERROR_SAVE_TRANSACTION'));
+					});
+			}
+		);
+		
+		modal.open();
 	}
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
+	/**
+	 * Handle slash command for quick transaction entry
+	 */
+	private handleSlashCommand(line: string, editor: Editor, view: MarkdownView) {
+		// Remove the slash command prefix
+		const commandText = line.replace(/^\/(accounting|transaction)\s*/, '').trim();
+		
+		if (!commandText) {
+			// If no additional text, open the modal
+			this.openTransactionModal();
+			return;
+		}
+		
+		// TODO: Implement parsing of command text for quick entry
+		// For now, just open the modal
+		this.openTransactionModal();
+		
+		// Remove the slash command line
+		editor.replaceRange('', 
+			{ line: editor.getCursor().line, ch: 0 },
+			{ line: editor.getCursor().line, ch: line.length }
+		);
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	/**
+	 * Activate the stats view
+	 */
+	private async activateStatsView() {
+		// Check if the view is already open
+		const existing = this.app.workspace.getLeavesOfType(STATS_VIEW_TYPE);
+		
+		if (existing.length) {
+			// Focus the existing leaf
+			this.app.workspace.revealLeaf(existing[0]);
+			return;
+		}
+		
+		// Open the view in a new leaf
+		const leaf = this.app.workspace.getRightLeaf(false);
+		if (leaf) {
+			await leaf.setViewState({
+				type: STATS_VIEW_TYPE,
+				active: true
+			});
+			
+			// Focus the new leaf
+			const leaves = this.app.workspace.getLeavesOfType(STATS_VIEW_TYPE);
+			if (leaves.length > 0) {
+				this.app.workspace.revealLeaf(leaves[0]);
+			}
+		}
 	}
-}
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+	/**
+	 * Load custom CSS styles
+	 */
+	private loadStyles() {
+		// Load trends styles
+		const trendsStylePath = this.manifest.dir + '/src/trends.css';
+		this.registerDomEvent(document, 'DOMContentLoaded', () => {
+			const link = document.createElement('link');
+			link.rel = 'stylesheet';
+			link.href = trendsStylePath;
+			document.head.appendChild(link);
+		});
 	}
 }

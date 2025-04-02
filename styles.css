@@ -1,8 +1,1485 @@
-/*
+/* Plugin Styles */
+.accounting-stats-view {
+    padding: 20px;
+    min-width: 300px;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Filter Controls */
+.stats-filters {
+    background-color: var(--background-secondary);
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
 
-If your plugin does not need CSS, delete this file.
+.stats-filters h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
 
-*/
+.stats-filters select,
+.stats-filters button {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.date-range-filter,
+.type-filter,
+.account-filter,
+.category-filter {
+    display: inline-block;
+    margin-right: 15px;
+}
+
+.stats-filters label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+/* Summary Section */
+.stats-summary {
+    margin-bottom: 20px;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.summary-card {
+    background-color: var(--background-secondary);
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.summary-card h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.income-card .summary-value {
+    color: var(--color-green);
+}
+
+.expense-card .summary-value {
+    color: var(--color-red);
+}
+
+/* Transactions Table */
+.transactions-section {
+    margin-bottom: 20px;
+}
+
+.transactions-table {
+    width: 100%;
+    font-size: 13px;
+}
+
+.transactions-table th {
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 8px;
+    background-color: var(--background-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.transactions-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    vertical-align: top;
+}
+
+.transactions-table tr:nth-child(even) {
+    background-color: var(--background-primary-alt);
+}
+
+.transactions-table tr:hover {
+    background-color: var(--background-secondary-alt);
+}
+
+.income-row {
+    background-color: rgba(0, 128, 0, 0.05);
+}
+
+.expense-row {
+    background-color: rgba(255, 0, 0, 0.05);
+}
+
+/* Chart Tabs */
+.chart-tabs {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.chart-tab {
+    padding: 8px 15px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-right: 5px;
+    border-radius: 5px 5px 0 0;
+}
+
+.chart-tab:hover {
+    background-color: var(--background-secondary-alt);
+}
+
+.chart-tab.active {
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-bottom: none;
+}
+
+/* Monthly Chart */
+.monthly-chart {
+    display: flex;
+    align-items: flex-end;
+    height: 200px;
+    margin-bottom: 20px;
+}
+
+.month-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 5px;
+}
+
+.month-label {
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.month-bars {
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+    width: 100%;
+    justify-content: center;
+}
+
+.income-bar,
+.expense-bar {
+    width: 20px;
+    margin: 0 2px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.income-bar {
+    background-color: var(--color-green);
+}
+
+.expense-bar {
+    background-color: var(--color-red);
+}
+
+.bar-value {
+    position: absolute;
+    top: -20px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+/* Yearly Chart */
+.yearly-chart {
+    display: flex;
+    align-items: flex-end;
+    height: 300px;
+    margin-bottom: 20px;
+}
+
+.year-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 10px;
+}
+
+.year-label {
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.year-bars {
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Category Chart */
+.category-chart {
+    margin-bottom: 20px;
+}
+
+.category-container {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.category-label {
+    width: 150px;
+    font-size: 14px;
+}
+
+.category-bar-container {
+    flex: 1;
+    background-color: var(--background-secondary);
+    height: 20px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.category-bar {
+    height: 100%;
+    background-color: var(--color-red);
+}
+
+.category-value {
+    margin-left: 10px;
+    font-size: 12px;
+    width: 100px;
+    text-align: right;
+}
+
+/* Chart Legend */
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin: 0 10px;
+}
+
+.legend-color {
+    width: 15px;
+    height: 15px;
+    margin-right: 5px;
+    border-radius: 3px;
+}
+
+.income-color {
+    background-color: var(--color-green);
+}
+
+.expense-color {
+    background-color: var(--color-red);
+}
+
+/* Transaction Modal */
+.accounting-transaction-modal .modal {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: var(--background-primary);
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    max-height: 90vh;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.accounting-transaction-modal.modal {
+    position: relative;
+    background-color: var(--background-primary);
+    padding: 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 550px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.accounting-transaction-modal.modal-close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text-muted);
+}
+
+.accounting-transaction-modal .date-time-container {
+    padding: 12px 18px;
+    border-top: none;
+}
+
+.accounting-transaction-modal .setting-item {
+    border-top: none;
+    padding-top: 12px;
+}
+
+/* Form styling improvements */
+.accounting-transaction-modal input[type="date"],
+.accounting-transaction-modal input[type="time"] {
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: inherit;
+}
+
+.accounting-transaction-modal .setting-item-control {
+    flex-wrap: wrap;
+}
+
+/* Settings Styles */
+.accounts-container,
+.categories-container,
+.tags-container {
+    margin-bottom: 20px;
+}
+
+.account-item,
+.category-item,
+.tag-item {
+    margin-bottom: 5px;
+    position: relative;
+}
+
+.income-categories,
+.expense-categories {
+    margin-bottom: 15px;
+}
+
+/* Nested items styling */
+.category-item,
+.tag-item {
+    transition: margin-left 0.2s ease;
+}
+
+/* Plugin Specific Overrides */
+
+/* Fix for any plugin-specific modal placement issues */
+.accounting-transaction-modal .setting-item {
+    border-top: none;
+    padding-top: 12px;
+}
+
+/* Properly indent nested items in settings */
+.account-item,
+.category-item,
+.tag-item {
+    position: relative;
+}
+
+/* Make sure the settings panel doesn't have positioning issues */
+.vertical-tab-content .setting-item {
+    border-top: none;
+    padding-top: 12px;
+}
+
+/* Ensure filter controls have proper spacing in mobile view */
+@media (max-width: 768px) {
+    .date-range-filter,
+    .type-filter,
+    .account-filter,
+    .category-filter {
+        display: block;
+        margin-bottom: 10px;
+    }
+    
+    .stats-filters select,
+    .stats-filters button {
+        width: 100%;
+        margin-right: 0;
+    }
+    
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .transactions-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .tag-item, .category-item, .account-item {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    
+    .setting-item {
+        flex-wrap: wrap;
+    }
+    
+    .setting-item-info {
+        margin-bottom: 8px;
+    }
+    
+    .setting-item-control {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+}
+
+/* Ensure statistics panel has a minimum width */
+.accounting-stats-view {
+    min-width: 300px;
+}
+
+/* Better spacing for summary cards on small screens */
+@media (max-width: 600px) {
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Tab Navigation */
+.stats-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 10px;
+}
+
+.stats-tab {
+    background-color: var(--background-secondary);
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.stats-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.stats-tab.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* Custom date container */
+.custom-date-container {
+    background-color: var(--background-secondary-alt);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.custom-date-container label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.custom-date-container input[type="date"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    margin-bottom: 10px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+}
+
+/* Balance colors */
+.summary-value.positive {
+    color: var(--color-green);
+}
+
+.summary-value.negative {
+    color: var(--color-red);
+}
+
+/* Tab content */
+.tab-content {
+    padding: 20px 0;
+}
+
+/* Improve the styling of the transaction table for better readability */
+.transactions-table {
+    width: 100%;
+    font-size: 13px;
+}
+
+.transactions-table th {
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 8px;
+    background-color: var(--background-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.transactions-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    vertical-align: top;
+}
+
+.transactions-table tr:nth-child(even) {
+    background-color: var(--background-primary-alt);
+}
+
+.transactions-table tr:hover {
+    background-color: var(--background-secondary-alt);
+}
+
+/* Enhanced charts */
+.trends-container,
+.analysis-container {
+    padding: 20px;
+    background-color: var(--background-secondary);
+    border-radius: 5px;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Improve form elements */
+.accounting-transaction-modal select,
+.accounting-transaction-modal input[type="text"],
+.accounting-transaction-modal textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+}
+
+/* Calendar View */
+.calendar-container {
+    margin-bottom: 20px;
+}
+
+.calendar-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.calendar-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.calendar-nav-button {
+    background: none;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.calendar-nav-button:hover {
+    background-color: var(--background-secondary);
+}
+
+.calendar-today-button {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.calendar-today-button:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.calendar-month-display {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    margin-bottom: 20px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: bold;
+    padding: 5px;
+    background-color: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.calendar-day {
+    min-height: 80px;
+    background-color: var(--background-secondary-alt);
+    border-radius: 4px;
+    padding: 5px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+}
+
+.calendar-day:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.calendar-day.empty {
+    background-color: transparent;
+    cursor: default;
+}
+
+.calendar-day.selected {
+    border: 2px solid var(--interactive-accent);
+    padding: 3px;
+}
+
+.calendar-day.has-transactions {
+    background-color: var(--background-primary);
+}
+
+.calendar-day-number {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.calendar-day-summary {
+    font-size: 12px;
+}
+
+.calendar-transaction-count {
+    margin-bottom: 3px;
+    opacity: 0.7;
+}
+
+.calendar-day-income {
+    color: var(--color-green);
+}
+
+.calendar-day-expense {
+    color: var(--color-red);
+}
+
+/* Daily Transactions Section */
+.daily-transactions-section {
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 20px;
+}
+
+.daily-summary {
+    margin-bottom: 20px;
+}
+
+.daily-summary-table {
+    width: auto;
+    margin-bottom: 10px;
+}
+
+.daily-summary-table td {
+    padding: 5px 10px;
+}
+
+.daily-summary-table .balance-row {
+    font-weight: bold;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Accounts Tab */
+.accounts-container {
+    margin-bottom: 20px;
+}
+
+.accounts-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.accounts-table th,
+.accounts-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.accounts-table th {
+    background-color: var(--background-secondary);
+    font-weight: bold;
+}
+
+.accounts-table .total-row {
+    font-weight: bold;
+    border-top: 2px solid var(--background-modifier-border);
+}
+
+.accounts-table .total-label {
+    text-align: right;
+}
+
+.accounts-table .positive {
+    color: var(--color-green);
+}
+
+.accounts-table .negative {
+    color: var(--color-red);
+}
+
+.accounts-table .income-value {
+    color: var(--color-green);
+}
+
+.accounts-table .expense-value {
+    color: var(--color-red);
+}
+
+/* Reports Tab Styles */
+.report-period-selector {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 10px;
+}
+
+.report-period-tab {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    margin-right: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--text-normal);
+}
+
+.report-period-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.report-period-tab.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.report-date-selector,
+.report-month-selector,
+.report-year-selector,
+.report-type-selector {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+.report-apply-button {
+    padding: 4px 12px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.report-apply-button:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.report-summary {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.report-summary-table {
+    width: 100%;
+}
+
+.report-summary-table td {
+    padding: 5px 0;
+}
+
+.report-summary-table td:first-child {
+    font-weight: bold;
+    width: 40%;
+}
+
+.balance-row {
+    font-weight: bold;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.report-charts-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.income-chart-container,
+.expense-chart-container,
+.category-chart-container {
+    flex: 1;
+    min-width: 300px;
+    padding: 15px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+/* Pie Chart Styles */
+.pie-chart-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background-color: var(--background-primary);
+}
+
+.pie-segment {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+}
+
+.pie-legend-container {
+    margin-bottom: 20px;
+}
+
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.pie-color-box {
+    width: 15px;
+    height: 15px;
+    margin-right: 10px;
+    border-radius: 3px;
+}
+
+.pie-table-container {
+    margin-top: 20px;
+}
+
+.pie-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pie-table th,
+.pie-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.pie-table th {
+    font-weight: bold;
+    background-color: var(--background-modifier-hover);
+}
+
+/* Category colors for pie charts */
+:root {
+    --category-color-0: #4e79a7;
+    --category-color-1: #f28e2c;
+    --category-color-2: #e15759;
+    --category-color-3: #76b7b2;
+    --category-color-4: #59a14f;
+}
+
+/* Trends Tab Styles */
+.trends-chart {
+    margin-bottom: 20px;
+}
+
+.trends-chart h4 {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.trends-chart-grid {
+    display: flex;
+    height: 250px;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 30px;
+}
+
+.trend-period-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.trend-bars-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    align-items: flex-end;
+    justify-content: space-around;
+}
+
+.trend-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    width: 20px;
+}
+
+.trend-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    position: relative;
+    transition: height 0.3s ease;
+}
+
+.trend-bar-value {
+    position: absolute;
+    top: -20px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.income-bar {
+    background-color: var(--color-green);
+}
+
+.expense-bar {
+    background-color: var(--color-red);
+}
+
+.balance-bar {
+    background-color: #2196f3;
+}
+
+.balance-bar.negative {
+    background-color: #ff9800;
+}
+
+.trend-period-label {
+    margin-top: 10px;
+    font-size: 10px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.trends-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.trend-analysis-section {
+    margin-top: 30px;
+}
+
+.trend-analysis-section h4 {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysis-table tr:nth-child(even) {
+    background-color: var(--background-secondary);
+}
+
+.analysis-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.analysis-table td:first-child {
+    font-weight: var(--font-medium);
+}
+
+.analysis-table td:last-child {
+    text-align: right;
+}
+
+/* Category Breakdown Styles */
+.category-breakdown-section {
+    margin-top: 30px;
+}
+
+.category-breakdown-section h4 {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.category-breakdown-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.pie-chart-container {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+}
+
+.pie-segment {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+}
+
+.pie-legend-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pie-color-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.pie-legend-text {
+    font-size: 12px;
+}
+
+.pie-table-container {
+    margin-top: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.pie-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pie-table th {
+    background-color: var(--background-secondary-alt);
+    padding: 8px;
+    text-align: left;
+    position: sticky;
+    top: 0;
+}
+
+.pie-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.pie-table .total-row {
+    font-weight: var(--font-bold);
+    background-color: var(--background-secondary-alt);
+}
+
+/* Define category colors for pie charts */
+:root {
+    --category-color-0: #4caf50;
+    --category-color-1: #2196f3;
+    --category-color-2: #ff9800;
+    --category-color-3: #9c27b0;
+    --category-color-4: #f44336;
+}
+
+/* Budget Styles */
+.budgets-container {
+    margin-bottom: 20px;
+}
+
+.budget-list {
+    margin-top: 15px;
+}
+
+.budget-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: var(--background-secondary);
+    border-radius: 5px;
+}
+
+.budget-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.budget-name {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.budget-amount {
+    font-size: 14px;
+    color: var(--text-accent);
+}
+
+.budget-period, .budget-scope {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.budget-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.budget-edit, .budget-delete {
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+}
+
+.budget-edit:hover {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.budget-delete:hover {
+    background-color: var(--text-error-hover);
+    color: white;
+}
+
+/* Secondary Tab Navigation */
+.secondary-stats-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 20px;
+}
+
+.secondary-stats-tab {
+    background-color: var(--background-secondary-alt);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.secondary-stats-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.secondary-stats-tab.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* Chart Containers */
+.daily-charts-container,
+.monthly-charts-container,
+.yearly-charts-container,
+.custom-charts-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.chart-container,
+.summary-container,
+.budget-container,
+.data-container {
+    background-color: var(--background-secondary);
+    padding: 15px;
+    border-radius: 8px;
+    min-height: 200px;
+}
+
+.chart-container h4,
+.summary-container h4,
+.budget-container h4,
+.data-container h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+/* Month and Year Selectors */
+.month-selector-container,
+.year-selector-container,
+.custom-date-range-selector-container {
+    display: flex;
+    justify-content: center;
+    margin: 15px 0;
+    gap: 10px;
+}
+
+/* Recent Transactions Chart */
+.recent-transactions-chart {
+    display: flex;
+    height: 200px;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.day-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.day-bars {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 5px;
+}
+
+.bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    width: 20px;
+}
+
+.income-bar,
+.expense-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    position: relative;
+    transition: height 0.3s ease;
+}
+
+.bar-value {
+    position: absolute;
+    top: -20px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.day-label {
+    margin-top: 10px;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* Asset Summary */
+.asset-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.asset-summary-table th,
+.asset-summary-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.asset-summary-table th {
+    font-weight: bold;
+    background-color: var(--background-modifier-hover);
+}
+
+.asset-summary-table .total-row {
+    font-weight: bold;
+}
+
+/* Budget Progress */
+.budget-progress-container {
+    margin-top: 15px;
+}
+
+.budget-progress-item {
+    margin-bottom: 10px;
+}
+
+.budget-progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.budget-progress-bar-container {
+    height: 10px;
+    background-color: var(--background-modifier-border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.budget-progress-bar {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    border-radius: 5px;
+}
+
+.budget-progress-bar.warning {
+    background-color: #ff9800;
+}
+
+.budget-progress-bar.danger {
+    background-color: var(--text-error);
+}
+
+/* Stats Tabs */
+.stats-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 10px;
+}
+
+.stats-tab {
+    background-color: var(--background-secondary);
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.stats-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.stats-tab.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* Secondary Tabs */
+.secondary-stats-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 20px;
+}
+
+.secondary-stats-tab {
+    background-color: var(--background-secondary-alt);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.secondary-stats-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.secondary-stats-tab.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* Responsive layout for tabs */
+@media (max-width: 768px) {
+    .stats-tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .stats-tab {
+        width: 100%;
+        text-align: left;
+    }
+    
+    .secondary-stats-tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .secondary-stats-tab {
+        width: 100%;
+        text-align: left;
+    }
+}
+
+/* Medium screens */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .stats-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .stats-tab {
+        flex: 1 0 calc(33.333% - 10px);
+        min-width: 120px;
+    }
+}
+
+/* Large screens */
+@media (min-width: 1025px) {
+    .stats-tabs {
+        flex-wrap: nowrap;
+    }
+    
+    .stats-tab {
+        flex: 1;
+    }
+}
