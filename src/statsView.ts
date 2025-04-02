@@ -1710,6 +1710,84 @@ export class StatsView extends ItemView {
         const currentDate = moment(this.selectedDate);
         const currentMonth = currentDate.month();
         const currentYear = currentDate.year();
+
+        // Add monthly summary section
+        const monthlySummaryContainer = containerEl.createDiv('monthly-summary-container', el => {
+            el.style.display = 'flex';
+            el.style.justifyContent = 'space-around';
+            el.style.margin = '20px 0';
+            el.style.padding = '15px';
+            el.style.backgroundColor = 'var(--background-secondary)';
+            el.style.borderRadius = '8px';
+        });
+
+        // Calculate monthly totals
+        const summaryMonthStart = moment([currentYear, currentMonth, 1]).startOf('day');
+        const summaryMonthEnd = moment([currentYear, currentMonth, currentDate.daysInMonth()]).endOf('day');
+        
+        // Filter transactions for the summary, respecting main filters
+        const summaryMonthTransactions = this.transactions.filter(transaction => {
+            const transactionMoment = moment(normalizeTransactionDate(transaction.date));
+            
+            // Check if within the month
+            if (!transactionMoment.isBetween(summaryMonthStart, summaryMonthEnd, undefined, '[]')) {
+                return false;
+            }
+            
+            // Filter by type (respect main filter)
+            if (this.selectedType !== 'all' && transaction.type !== this.selectedType) {
+                return false;
+            }
+
+            // Filter by account (respect main filter)
+            if (this.selectedAccountId !== 'all' && transaction.accountId !== this.selectedAccountId) {
+                return false;
+            }
+
+            // Filter by category (respect main filter)
+            if (this.selectedCategoryId !== 'all' && transaction.categoryId !== this.selectedCategoryId) {
+                return false;
+            }
+            
+            return true;
+        });
+
+        let summaryMonthlyIncome = 0;
+        let summaryMonthlyExpense = 0;
+
+        summaryMonthTransactions.forEach(transaction => {
+            if (transaction.type === 'income') {
+                summaryMonthlyIncome += transaction.amount;
+            } else {
+                summaryMonthlyExpense += transaction.amount;
+            }
+        });
+
+        const summaryMonthlyTotal = summaryMonthlyIncome - summaryMonthlyExpense;
+
+        // Create summary cards
+        const createSummaryCard = (label: string, amount: number, type: 'income' | 'expense' | 'total') => {
+            const card = monthlySummaryContainer.createDiv('monthly-summary-card', el => {
+                el.style.textAlign = 'center';
+                el.style.padding = '10px';
+                el.style.borderRadius = '4px';
+                el.style.backgroundColor = 'var(--background-primary)';
+            });
+            
+            card.createEl('div', { text: label, cls: 'monthly-summary-label' });
+            const amountEl = card.createEl('div', { 
+                text: `¥${Math.abs(amount).toFixed(0)}`,
+                cls: `monthly-summary-amount ${type}`
+            });
+            
+            if (type === 'total') {
+                amountEl.style.fontWeight = 'bold';
+            }
+        };
+
+        createSummaryCard('Monthly Income', summaryMonthlyIncome, 'income');
+        createSummaryCard('Monthly Expense', summaryMonthlyExpense, 'expense');
+        createSummaryCard('Monthly Total', summaryMonthlyTotal, 'total');
         
         // Create month/year selector
         const monthYearSelector = selectorContainer.createDiv('month-year-selector', el => {
@@ -1767,7 +1845,7 @@ export class StatsView extends ItemView {
         
         // Create weekday headers
         const weekdaysContainer = calendarContainer.createDiv('calendar-weekdays');
-        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         
         weekdays.forEach(day => {
             const weekdayEl = weekdaysContainer.createDiv('calendar-weekday');
@@ -1782,45 +1860,26 @@ export class StatsView extends ItemView {
         const daysInMonth = firstDayOfMonth.daysInMonth();
         const firstDayWeekday = firstDayOfMonth.day(); // 0 = Sunday, 6 = Saturday
         
+        // Adjust firstDayWeekday to start from Monday (1 = Monday, 7 = Sunday)
+        const adjustedFirstDayWeekday = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
+        
         // Add empty cells for days before the first day of month
-        for (let i = 0; i < firstDayWeekday; i++) {
+        for (let i = 0; i < adjustedFirstDayWeekday; i++) {
             calendarGrid.createDiv({cls: 'calendar-day empty'});
         }
         
-        // Get ALL transactions for the selected month, respecting main filters (Type, Account, Category)
-        const monthStart = moment([currentYear, currentMonth, 1]).startOf('day');
-        const monthEnd = moment([currentYear, currentMonth, daysInMonth]).endOf('day');
+        // Get ALL transactions for the selected month, respecting main filters (Type, Account, Category) - *Reuses filtering logic from summary*
+        const monthStartForGrid = moment([currentYear, currentMonth, 1]).startOf('day');
+        const monthEndForGrid = moment([currentYear, currentMonth, daysInMonth]).endOf('day');
         
-        const monthTransactions = this.transactions.filter(transaction => {
-            const transactionMoment = moment(normalizeTransactionDate(transaction.date));
-            
-             // Check if within the month
-             if (!transactionMoment.isBetween(monthStart, monthEnd, undefined, '[]')) {
-                 return false;
-             }
-            
-            // Filter by type (respect main filter)
-            if (this.selectedType !== 'all' && transaction.type !== this.selectedType) {
-                return false;
-            }
-
-            // Filter by account (respect main filter)
-            if (this.selectedAccountId !== 'all' && transaction.accountId !== this.selectedAccountId) {
-                return false;
-            }
-
-            // Filter by category (respect main filter)
-            if (this.selectedCategoryId !== 'all' && transaction.categoryId !== this.selectedCategoryId) {
-                return false;
-            }
-            
-            return true;
-        });
+        // Use the already filtered transactions for the grid population
+        // const monthTransactionsForGrid = this.transactions.filter(transaction => { ... }); // No need to filter again
+        const monthTransactionsForGrid = summaryMonthTransactions; // Reuse the filtered list
         
         // Group transactions by day
         const transactionsByDay: Record<string, Transaction[]> = {};
         
-        monthTransactions.forEach(transaction => {
+        monthTransactionsForGrid.forEach(transaction => {
             const dateString = getDatePart(transaction.date); // Use utility function
             if (!transactionsByDay[dateString]) {
                 transactionsByDay[dateString] = [];
@@ -1895,7 +1954,7 @@ export class StatsView extends ItemView {
         }
         
         // Add empty cells for days after the last day of month to complete the grid
-        const totalCells = firstDayWeekday + daysInMonth;
+        const totalCells = adjustedFirstDayWeekday + daysInMonth; // Use adjusted weekday start
         const remainingCells = Math.ceil(totalCells / 7) * 7 - totalCells; // Calculate remaining cells for full weeks
         
         for (let i = 0; i < remainingCells; i++) {

@@ -576,6 +576,22 @@
     margin-bottom: 20px;
 }
 
+/* Add grid layout to weekdays to align with the main grid */
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px; /* Match gap with calendar-grid */
+    margin-bottom: 5px; /* Add a small gap below weekdays */
+    font-weight: bold;
+    text-align: center; /* Center text within each weekday cell */
+}
+
+.calendar-weekday {
+    padding: 5px; /* Add some padding */
+    background-color: var(--background-secondary); /* Optional: Give weekdays a background */
+    border-radius: 4px;
+}
+
 .calendar-controls {
     display: flex;
     justify-content: space-between;
