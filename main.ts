@@ -1,7 +1,8 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, addIcon, normalizePath, Events } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, addIcon, normalizePath, Events, TFile } from 'obsidian';
+import * as moment from 'moment';
 import { AccountingPluginSettings, AccountingSettingTab, DEFAULT_SETTINGS } from './src/settings';
 import { TransactionModal } from './src/transactionModal';
-import { saveTransaction } from './src/utils';
+import { saveTransaction, formatTransaction, normalizeTransactionDate, parseTransactionsFromFile, getDatePart } from './src/utils';
 import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
 import { Account, Category, Tag, Transaction, TransactionType } from './src/models';
 import { I18n } from './src/locales/i18n';
@@ -21,19 +22,19 @@ export default class AccountingPlugin extends Plugin {
 	settings: AccountingPluginSettings;
 	events: Events;
 	i18n: I18n; // 添加I18n实例
+	public transactions: Transaction[] = []; // Store loaded transactions
 
 	async onload() {
 		await this.loadSettings();
 
-		// 初始化语言管理器
+		// Initialize language manager
 		this.i18n = I18n.getInstance();
 		
-		// If user has set to follow system language, detect Obsidian's language
+		// Set locale based on settings
 		if (this.settings.followSystemLanguage) {
 			const obsidianLocale = this.getObsidianLocale();
 			this.i18n.setLocale(obsidianLocale);
 		} else {
-			// Use the manually selected language
 			this.i18n.setLocale(this.settings.locale);
 		}
 
@@ -45,6 +46,9 @@ export default class AccountingPlugin extends Plugin {
 
 		// Load CSS styles
 		this.loadStyles();
+
+		// Initial load of transactions
+		await this.loadAllTransactions(); 
 
 		// Add ribbon icon
 		this.addRibbonIcon('accounting', this.i18n.t('ADD_TRANSACTION'), (evt: MouseEvent) => {
@@ -97,14 +101,54 @@ export default class AccountingPlugin extends Plugin {
 
 		// Add settings tab
 		this.addSettingTab(new AccountingSettingTab(this.app, this));
+
+		// Optional: Reload transactions when relevant files change
+		// this.registerEvent(
+        //     this.app.metadataCache.on('changed', (file) => {
+        //         // Check if the changed file is relevant (e.g., daily note or output file)
+        //         if (this.isRelevantFile(file.path)) {
+        //             this.loadAllTransactions();
+        //         }
+        //     })
+        // );
 	}
+
+	/**
+	 * Load all transactions based on settings
+	 */
+	async loadAllTransactions(): Promise<void> {
+        this.transactions = [];
+        try {
+            if (this.settings.useDailyNotes) {
+                const files = this.app.vault.getMarkdownFiles();
+                let dailyNoteFormat = this.settings.dailyNotesFormat;
+                // Optional: Try to get format from Daily Notes/Calendar plugin if needed
+
+                for (const file of files) {
+                    // Use moment directly for parsing - Ensure standard call
+                    if (moment(file.basename, dailyNoteFormat, true).isValid()) { 
+                        const fileTransactions = await parseTransactionsFromFile(this.app, file.path, this.settings);
+                        this.transactions.push(...fileTransactions);
+                    }
+                }
+            } else {
+                this.transactions = await parseTransactionsFromFile(this.app, this.settings.outputFile, this.settings);
+            }
+            console.log('Loaded transactions:', this.transactions.length);
+             // Trigger an event to notify views (like StatsView) that transactions have been loaded/reloaded
+             this.events.trigger('transactions-updated');
+        } catch (error) {
+            console.error('Error loading transactions:', error);
+            new Notice('Error loading transactions. Check console for details.');
+        }
+    }
 
 	/**
 	 * Get Obsidian's language and map it to supported locales
 	 */
 	public getObsidianLocale(): SupportedLocale {
-		// Get Obsidian's locale from app settings
-		const obsidianLocale = this.app.vault.config?.locale || 'en';
+		// Use moment's locale as Obsidian's setting is not directly accessible reliably
+		const obsidianLocale = moment.locale(); // Get current moment locale 
 		
 		// Map Obsidian's locale to our supported locales
 		if (obsidianLocale.startsWith('zh')) {
@@ -129,28 +173,135 @@ export default class AccountingPlugin extends Plugin {
 	}
 
 	/**
-	 * Open the transaction modal
+	 * Open the transaction modal for adding a new transaction
 	 */
 	private openTransactionModal() {
 		const modal = new TransactionModal(
 			this.app,
 			this,
-			(transaction) => {
-				// Save the transaction
-				saveTransaction(this.app, transaction, this.settings)
-					.then(() => {
-						new Notice(this.i18n.t('SUCCESS_SAVE_TRANSACTION'));
-						// Trigger transaction added event
-						this.events.trigger('transaction-added', transaction);
-					})
-					.catch((error) => {
-						console.error('Error saving transaction:', error);
-						new Notice(this.i18n.t('ERROR_SAVE_TRANSACTION'));
-					});
+			async (transaction) => {
+				// Save the new transaction
+				await saveTransaction(this.app, transaction, this.settings);
+				new Notice(this.i18n.t('SUCCESS_SAVE_TRANSACTION'));
+				// Reload transactions and notify views
+				await this.loadAllTransactions();
+				this.events.trigger('transaction-added', transaction); // Keep original event if needed
 			}
 		);
 		
 		modal.open();
+	}
+
+	/**
+	 * Open the transaction modal for editing an existing transaction
+	 */
+	async editTransaction(transactionToEdit: Transaction): Promise<void> {
+		const modal = new TransactionModal(
+			this.app,
+			this, 
+			async (updatedTransaction) => {
+				// Handle the updated transaction
+				await this.updateTransaction(updatedTransaction);
+				new Notice('Transaction updated successfully'); // Add translation key if needed
+				// Reload transactions and notify views
+				await this.loadAllTransactions(); 
+				// Optionally trigger a specific update event
+				// this.events.trigger('transaction-updated', updatedTransaction);
+			},
+			transactionToEdit // Pass the transaction to edit
+		);
+
+		modal.open();
+	}
+
+	/**
+	 * Update an existing transaction in its file
+	 * NOTE: This is a complex operation and needs careful implementation.
+	 */
+	private async updateTransaction(updatedTransaction: Transaction): Promise<void> {
+		// 1. Find the original transaction in this.transactions to get its original date (for finding the file)
+		const originalTransaction = this.transactions.find(t => t.id === updatedTransaction.id);
+		if (!originalTransaction) {
+			console.error('Cannot update transaction: Original not found.');
+			new Notice('Error updating transaction: Original not found.');
+			return;
+		}
+
+		// 2. Determine the file path based on the ORIGINAL transaction's date
+		let filePath: string;
+		if (this.settings.useDailyNotes) {
+			const originalDateOnly = getDatePart(originalTransaction.date);
+			const date = moment(originalDateOnly, 'YYYY-MM-DD'); // Use moment here
+			const fileName = date.format(this.settings.dailyNotesFormat);
+			filePath = `${fileName}.md`;
+		} else {
+			filePath = this.settings.outputFile;
+		}
+
+		// 3. Read the file content
+		const normalizedPath = normalizePath(filePath);
+		const file = this.app.vault.getAbstractFileByPath(normalizedPath) as TFile; // Use imported TFile
+		if (!file) {
+			console.error(`Cannot update transaction: File not found at ${filePath}`);
+			new Notice(`Error updating transaction: File not found.`);
+			return;
+		}
+		const content = await this.app.vault.read(file);
+		const lines = content.split('\n');
+
+		// 4. Find and replace the line
+		//    THIS IS THE TRICKY PART. How are transactions uniquely identified in the line?
+		//    Assuming the format includes the ID, e.g., `- {{date}} | ... | id={{id}}`
+		//    Or relying on exact match of the original formatted string might be fragile.
+		//    A robust solution might require parsing each line or adding explicit IDs.
+		//    For now, let's try finding by ID if it's part of the format, or fall back to searching for original formatted line.
+		
+		let foundIndex = -1;
+		// Try finding by ID embedded in the line (adjust regex/logic as needed)
+		const idRegex = new RegExp(`id=${originalTransaction.id}( |$)`); 
+		foundIndex = lines.findIndex(line => line.startsWith('- ') && idRegex.test(line));
+
+		// Fallback: Find by matching the originally formatted string (less reliable)
+		if (foundIndex === -1) {
+			const originalFormatted = formatTransaction(originalTransaction, this.settings.transactionTemplate, this.settings.accounts, this.settings.categories, this.settings.tags);
+			foundIndex = lines.findIndex(line => line.trim() === originalFormatted.trim());
+		}
+
+		if (foundIndex === -1) {
+			console.error(`Cannot update transaction: Line for ID ${originalTransaction.id} not found in ${filePath}`);
+			new Notice(`Error updating transaction: Could not find original record.`);
+			return;
+		}
+
+		// 5. Format the updated transaction
+		const updatedFormatted = formatTransaction(updatedTransaction, this.settings.transactionTemplate, this.settings.accounts, this.settings.categories, this.settings.tags);
+
+		// 6. Replace the line and save
+		lines[foundIndex] = updatedFormatted;
+		await this.app.vault.modify(file, lines.join('\n'));
+
+		// 7. Handle potential file move if date changed and using daily notes
+		if (this.settings.useDailyNotes) {
+			const newDateOnly = getDatePart(updatedTransaction.date);
+			if (newDateOnly !== getDatePart(originalTransaction.date)) {
+				// Transaction date changed, need to move it to the new daily note
+				// This involves removing it from the old file (already done by replacing) 
+				// and appending it to the new file.
+				await saveTransaction(this.app, updatedTransaction, this.settings); // Save to potentially new file
+				
+				// Clean up the placeholder line in the original file if it wasn't the only content
+				// (Re-reading and saving might be safer)
+				const oldContent = await this.app.vault.read(file);
+				const oldLines = oldContent.split('\n');
+				// If the line we replaced was the only transaction, the file might just have that line.
+				// Simple check: if the line exists and is just the updated one, remove it.
+				// A more robust check is needed depending on file structure.
+				if (oldLines[foundIndex] === updatedFormatted) { 
+					 oldLines.splice(foundIndex, 1);
+					 await this.app.vault.modify(file, oldLines.join('\n'));
+				}
+			}
+		}
 	}
 
 	/**
@@ -211,12 +362,12 @@ export default class AccountingPlugin extends Plugin {
 	 */
 	private loadStyles() {
 		// Load trends styles
-		const trendsStylePath = this.manifest.dir + '/src/trends.css';
-		this.registerDomEvent(document, 'DOMContentLoaded', () => {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = trendsStylePath;
-			document.head.appendChild(link);
-		});
+		// const trendsStylePath = this.manifest.dir + '/src/trends.css'; // Example, adjust if needed
+		// this.registerDomEvent(document, 'DOMContentLoaded', () => {
+		// 	const link = document.createElement('link');
+		// 	link.rel = 'stylesheet';
+		// 	link.href = trendsStylePath;
+		// 	document.head.appendChild(link);
+		// });
 	}
 }

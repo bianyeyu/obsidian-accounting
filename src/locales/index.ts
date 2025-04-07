@@ -247,6 +247,18 @@ export interface Translation {
 
     // 成功信息
     SUCCESS_SAVE_TRANSACTION: string;
+
+    // Added for Edit Modal / Validation / Budget Warnings
+    UPDATE: string;
+    ERROR_INVALID_DATE: string;
+    ERROR_INVALID_TYPE: string;
+    // ERROR_INVALID_AMOUNT: string; // Reusing existing key
+    ERROR_ACCOUNT_REQUIRED: string;
+    WARN_BUDGET_OVER: string; // Format: "... {budgetName} ... {scopeName} ... ¥{projected}, ... ¥{limit}."
+    WARN_BUDGET_CLOSE: string; // Format: "... {budgetName} ... {scopeName} ... ¥{projected}, ... ¥{limit}."
+    INFO_NEW_ACCOUNT: string; // Format: "... \"{name}\" ..."
+    INFO_NEW_CATEGORY: string; // Format: "... \"{name}\" ..."
+    INFO_NEW_TAG: string; // Format: "... \"{name}\" ..."
 }
 
 // Display names for locales first

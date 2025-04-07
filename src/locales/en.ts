@@ -238,6 +238,16 @@ const en: Translation = {
     NOTE_PLACEHOLDER: 'Enter transaction note here...',
 
     // --- Start of Added/Updated Keys (Consolidated) ---
+    UPDATE: 'Update',
+    ERROR_INVALID_DATE: 'Please enter a valid date and time (YYYY-MM-DD HH:mm).',
+    ERROR_INVALID_TYPE: 'Please select a valid transaction type (Income or Expense).',
+    ERROR_INVALID_AMOUNT: 'Please enter a valid amount greater than 0.',
+    ERROR_ACCOUNT_REQUIRED: 'Account is required.',
+    WARN_BUDGET_OVER: 'Warning: Adding this transaction will exceed the budget \"{budgetName}\" ({scopeName})! Projected: ¥{projected}, Limit: ¥{limit}.',
+    WARN_BUDGET_CLOSE: 'Note: Adding this transaction uses over 90% of the budget \"{budgetName}\" ({scopeName}). Projected: ¥{projected}, Limit: ¥{limit}.',
+    INFO_NEW_ACCOUNT: 'New account \"{name}\" created.',
+    INFO_NEW_CATEGORY: 'New category \"{name}\" created.',
+    INFO_NEW_TAG: 'New tag \"{name}\" created.',
     OUTPUT_FILE_PATH: 'Output file path',
 };
 

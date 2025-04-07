@@ -1189,11 +1189,37 @@ export class StatsView extends ItemView {
     }
     
     private renderExpenseBreakdownChart(containerEl: HTMLElement, transactions: Transaction[]): void {
-        const chartContainer = containerEl.createDiv('chart-container');
-        chartContainer.createEl('h4', { text: 'Expense Breakdown' });
-        
-        // Use filtered transactions for the current scope (e.g., month)
-        this.renderExpensePieChart(chartContainer, transactions);
+        const chartContainer = containerEl.createDiv('chart-container expense-breakdown-chart');
+        // containerEl.createEl('h5', { text: 'Expense Breakdown' }); // Title might be redundant
+
+        if (transactions.length === 0) {
+            chartContainer.setText('No expense data for selected period.');
+            return;
+        }
+
+        const expenseTransactions = transactions.filter(t => t.type === 'expense');
+        if (expenseTransactions.length === 0) {
+            chartContainer.setText('No expense data for selected period.');
+            return;
+        }
+
+        const categoryExpenses: { [key: string]: number } = {};
+        const flatCategories = flattenHierarchy(this.plugin.settings.categories);
+
+        expenseTransactions.forEach(transaction => {
+            const category = findCategoryById(this.plugin.settings.categories, transaction.categoryId);
+            const categoryName = category ? category.name : 'Uncategorized';
+            categoryExpenses[categoryName] = (categoryExpenses[categoryName] || 0) + transaction.amount;
+        });
+
+        const sortedCategories = Object.entries(categoryExpenses)
+            .sort(([, a], [, b]) => b - a) // Sort descending by amount
+            .map(([name, amount]) => ({ name, amount }));
+
+        const totalExpenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+        // Use the existing function for rendering category pie charts
+        this.renderCategoryPieChart(chartContainer, sortedCategories, totalExpenses, 'Expense Breakdown');
     }
     
     private renderExpenseData(containerEl: HTMLElement, transactions: Transaction[]): void {
@@ -2039,6 +2065,11 @@ export class StatsView extends ItemView {
         // Add rows for each transaction
         sortedTransactions.forEach(transaction => {
             const row = tbody.createEl('tr');
+            row.addClass('transaction-row'); // Add a class for styling/selection
+            row.style.cursor = 'pointer'; // Make it look clickable
+
+            // Store transaction ID on the row for easy access
+            row.dataset.transactionId = transaction.id;
             
             // Time
              const time = moment(normalizeTransactionDate(transaction.date)).format('HH:mm');
@@ -2071,6 +2102,39 @@ export class StatsView extends ItemView {
             const typeCell = row.createEl('td');
             typeCell.setText(transaction.type.substring(0,3)); // Shorten type
             typeCell.addClass(transaction.type === 'income' ? 'income-type' : 'expense-type');
+
+            // Add click listener to the row
+            row.addEventListener('click', async () => {
+                // Find the full transaction details
+                const fullTransaction = this.transactions.find(t => t.id === transaction.id);
+                if (!fullTransaction) {
+                    console.error("Could not find transaction details for ID:", transaction.id);
+                    return; 
+                }
+                
+                // Close the popup
+                popupContainer.remove();
+                
+                // Open the transaction edit modal (assuming you have a way to do this)
+                // You'll need to import and use your EditTransactionModal here
+                // Example:
+                // const editModal = new EditTransactionModal(this.app, this.plugin, fullTransaction, async (updatedTransaction) => {
+                //     // Handle the updated transaction (e.g., save and refresh)
+                //     await this.plugin.updateTransaction(updatedTransaction);
+                //     await this.refreshView(); 
+                // });
+                // editModal.open();
+
+                // Placeholder: Log to console for now
+                console.log("Edit transaction:", fullTransaction);
+                // Replace the above console.log with the actual modal opening code
+                // You'll need to implement the EditTransactionModal first.
+                
+                // --- Integration with existing Edit Modal ---
+                // Assuming `this.plugin.editTransaction` handles opening the modal
+                await this.plugin.editTransaction(fullTransaction);
+                // No need to explicitly refresh here if editTransaction handles it
+            });
         });
         
         // Optional: Add click outside to close
@@ -2918,71 +2982,46 @@ export class StatsView extends ItemView {
      * Render category trends
      */
     private renderCategoryTrends(containerEl: HTMLElement): void {
-        // Get filtered transactions based on the main filters
-        const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
-        
-        if (filteredTransactions.length === 0) {
-            containerEl.createEl('p', { text: 'No transactions found for the selected filters to analyze category trends.' });
-            return;
-        }
-        
-        // Create tabs for income and expense categories
-        const categoryTypeTabs = containerEl.createDiv('category-type-tabs', el => {
-            // Style similar to other tab groups
-             el.style.display = 'flex';
-             el.style.flexWrap = 'wrap';
-             el.style.gap = '5px';
-             el.style.marginBottom = '15px';
-        });
-        
-         let currentCategoryType: 'income' | 'expense' = 'expense'; // Default to expense
+        containerEl.empty();
+        containerEl.createEl('h4', { text: 'Category Trends (Monthly)' });
 
-        const incomeTab = categoryTypeTabs.createEl('button', {
-            cls: ['category-type-tab', currentCategoryType === 'income' ? 'active' : ''],
-            text: 'Income Categories'
-        });
-        
+        const categoryTypeTabs = containerEl.createDiv('category-type-tabs');
+        let currentCategoryType: 'income' | 'expense' = 'expense'; // Default to expense
+
         const expenseTab = categoryTypeTabs.createEl('button', {
             cls: ['category-type-tab', currentCategoryType === 'expense' ? 'active' : ''],
             text: 'Expense Categories'
         });
-        
-        // Create container for category data
-        const categoryDataContainer = containerEl.createDiv('category-data-container');
-        
-        // Function to render category data
+
+        const incomeTab = categoryTypeTabs.createEl('button', {
+            cls: ['category-type-tab', currentCategoryType === 'income' ? 'active' : ''], // Corrected comparison
+            text: 'Income Categories'
+        });
+
+        const categoryTrendsTableContainer = containerEl.createDiv('category-trends-table-container');
+
         const renderCategoryData = (type: 'income' | 'expense') => {
             // Clear container
-            categoryDataContainer.empty();
+            categoryTrendsTableContainer.empty();
             
             // Filter transactions by type
-            const typeTransactions = filteredTransactions.filter(t => t.type === type);
+            const typeTransactions = filteredTransactions.filter((t: Transaction) => t.type === type); // Added type for t
             
             if (typeTransactions.length === 0) {
-                categoryDataContainer.createEl('p', { 
+                categoryTrendsTableContainer.createEl('p', { 
                     text: `No ${type} transactions found for the selected filters.` 
                 });
                 return;
             }
             
-            // Group transactions by category
-            const transactionsByCategory: Record<string, { amount: number, count: number }> = {};
-            const categories = flattenHierarchy(this.plugin.settings.categories);
-            
-            typeTransactions.forEach(transaction => {
-                let categoryId = transaction.categoryId || 'uncategorized';
-                let categoryName = 'Uncategorized';
-                if (transaction.categoryId) {
-                    const category = categories.find(c => c.id === transaction.categoryId);
-                    if (category) categoryName = category.name;
-                    else categoryId = 'uncategorized'; // Use ID if name not found but ID exists
-                }
-
+            // Group transactions by category ID
+            const transactionsByCategory: { [categoryId: string]: Transaction[] } = {};
+            typeTransactions.forEach((transaction: Transaction) => { // Added type for transaction
+                const categoryId = transaction.categoryId;
                 if (!transactionsByCategory[categoryId]) {
-                     transactionsByCategory[categoryId] = { amount: 0, count: 0 };
-                 }
-                transactionsByCategory[categoryId].amount += transaction.amount;
-                 transactionsByCategory[categoryId].count++;
+                    transactionsByCategory[categoryId] = [];
+                }
+                transactionsByCategory[categoryId].push(transaction);
             });
 
              // Map back to names for display, keeping uncategorized separate
@@ -2994,8 +3033,8 @@ export class StatsView extends ItemView {
                  }
                  categoryDataForDisplay.push({ 
                      name: name, 
-                     amount: transactionsByCategory[catId].amount,
-                     count: transactionsByCategory[catId].count 
+                     amount: transactionsByCategory[catId].reduce((sum, t) => sum + t.amount, 0),
+                     count: transactionsByCategory[catId].length 
                  });
              }
             
@@ -3006,13 +3045,13 @@ export class StatsView extends ItemView {
             const totalAmount = sortedCategories.reduce((sum, cat) => sum + cat.amount, 0);
             
             // Create chart section (Pie Chart)
-            const chartSection = categoryDataContainer.createDiv('category-chart-section');
+            const chartSection = categoryTrendsTableContainer.createDiv('category-chart-section');
              chartSection.createEl('h4', { text: `${type === 'income' ? 'Income' : 'Expense'} Breakdown by Category` });
              // Reuse the pie chart rendering function
              this.renderCategoryPieChart(chartSection, sortedCategories, totalAmount); 
             
             // Create trend analysis section (Table)
-            const analysisSection = categoryDataContainer.createDiv('trend-analysis-section category-table-section');
+            const analysisSection = categoryTrendsTableContainer.createDiv('trend-analysis-section category-table-section');
             analysisSection.createEl('h4', { text: 'Category Details Table' });
             const analysisTable = analysisSection.createEl('table', { cls: 'analysis-table category-analysis-table' });
              const thead = analysisTable.createEl('thead');
@@ -3076,25 +3115,16 @@ export class StatsView extends ItemView {
      * Render the Analysis tab
      */
     private renderAnalysisTab(containerEl: HTMLElement): void {
-        // containerEl.createEl('h3', { text: 'Financial Analysis' }); // Title redundant
-        
-        // Add Summary for the filtered scope first
-        this.addSummarySection(containerEl);
+        containerEl.empty();
+        // containerEl.createEl('h3', { text: 'Financial Analysis' }); // Redundant
 
-        // Get filtered transactions based on scope
+        // Use existing filter logic if needed, or apply default filters
         const filteredTransactions = this.getFilteredTransactionsForCurrentScope();
-        
-        if (filteredTransactions.length === 0) {
-            containerEl.createEl('p', { text: 'No transactions found for the selected filters to perform analysis.' });
-            return; 
-        }
-        
-        // --- Additional Analysis Sections ---
-        
-        // 1. Expense Breakdown (Reuse)
+
+        // 1. Expense Breakdown Pie Chart + Data Table
          const expenseBreakdownContainer = containerEl.createDiv('analysis-section expense-analysis');
          expenseBreakdownContainer.createEl('h4', { text: 'Expense Analysis' });
-         this.renderExpensePieChart(expenseBreakdownContainer, filteredTransactions);
+         this.renderExpenseBreakdownChart(expenseBreakdownContainer, filteredTransactions); // Renamed call
          this.renderExpenseData(expenseBreakdownContainer, filteredTransactions); // Show data table too
 
         // 2. Income Breakdown (Similar structure to expense)

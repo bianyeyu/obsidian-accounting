@@ -307,33 +307,238 @@
     position: relative;
     background-color: var(--background-primary);
     padding: 0;
-    border-radius: 8px;
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+    border-radius: 16px; /* MD3 uses larger corner radii */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); /* Softer shadow per MD3 */
     width: 100%;
-    max-width: 550px;
+    max-width: 600px; /* Increased from 550px for better spacing */
     max-height: 90vh;
     overflow-y: auto;
 }
 
-.accounting-transaction-modal.modal-close-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
+.accounting-transaction-modal .modal-content {
+    padding: 16px 24px; /* MD3 standard spacing */
+}
+
+.accounting-transaction-modal h2 {
+    font-size: 24px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    padding: 0 24px;
+    font-weight: 500; /* MD3 uses medium weight for headlines */
+    color: var(--text-normal);
+}
+
+/* Form Group Styling - Added more spacing */
+.accounting-transaction-modal .form-group {
+    margin-bottom: 24px; /* Increased vertical spacing between form groups */
+    padding: 0 24px;
+}
+
+/* Date-Time Container */
+.accounting-transaction-modal .date-time-container {
+    margin-bottom: 24px;
+    padding: 0 24px;
+}
+
+.accounting-transaction-modal .date-time-inputs {
+    display: flex;
+    gap: 16px; /* MD3 standard spacing */
+    margin-top: 8px; /* Added space after label */
+}
+
+/* Input styling with MD3 characteristics */
+.accounting-transaction-modal input[type="date"],
+.accounting-transaction-modal input[type="time"] {
+    height: 40px; /* Taller inputs for better touch targets */
+    padding: 8px 16px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    border-radius: 8px; /* Rounded corners per MD3 */
+    font-size: 16px; /* Better readability */
+    color: var(--text-normal);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.accounting-transaction-modal input[type="date"]:focus,
+.accounting-transaction-modal input[type="time"]:focus,
+.accounting-transaction-modal select:focus,
+.accounting-transaction-modal input[type="text"]:focus,
+.accounting-transaction-modal input[type="number"]:focus,
+.accounting-transaction-modal textarea:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+    outline: none;
+}
+
+/* Setting Items */
+.accounting-transaction-modal .setting-item {
+    padding: 12px 24px;
+    border-top: none;
+    display: flex;
+    flex-direction: column; /* Stack vertically for better spacing */
+    margin-bottom: 16px;
+}
+
+.accounting-transaction-modal .setting-item-info {
+    margin-bottom: 8px;
+    width: 100%; /* Full width for name and description */
+}
+
+.accounting-transaction-modal .setting-item-name {
+    font-size: 16px;
+    font-weight: 500; /* Medium weight per MD3 */
+    margin-bottom: 4px;
+    color: var(--text-normal);
+}
+
+.accounting-transaction-modal .setting-item-description {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.accounting-transaction-modal .setting-item-control {
+    display: flex;
+    width: 100%; /* Full width control area */
+}
+
+/* Form inputs */
+.accounting-transaction-modal select,
+.accounting-transaction-modal input[type="text"],
+.accounting-transaction-modal input[type="number"],
+.accounting-transaction-modal textarea {
+    width: 100%;
+    padding: 12px 16px; /* More generous padding */
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px; /* Rounded corners */
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 16px; /* Larger font for better readability */
+    height: auto; /* Let content determine height */
+    min-height: 40px; /* Minimum touch target size */
+    margin-bottom: 8px;
+}
+
+.accounting-transaction-modal input[type="number"] {
+    -moz-appearance: textfield; /* Remove spinner in Firefox */
+}
+
+.accounting-transaction-modal input[type="number"]::-webkit-inner-spin-button,
+.accounting-transaction-modal input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0; /* Remove spinner in Webkit browsers */
+}
+
+.accounting-transaction-modal textarea {
+    min-height: 80px; /* Larger text area */
+    resize: vertical;
+    line-height: 1.5;
+}
+
+/* Dropdown styling */
+.accounting-transaction-modal .dropdown {
+    width: 100%;
+    position: relative;
+}
+
+/* Budget warnings */
+.accounting-transaction-modal .budget-warnings-container {
+    margin: 16px 24px;
+    padding: 16px; /* More padding */
+    border-radius: 8px; /* Rounded corners */
+    background-color: var(--background-secondary-alt);
+    border-left: 4px solid transparent; /* Slightly thicker indicator */
+}
+
+.accounting-transaction-modal .budget-warning {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    line-height: 1.5; /* Better line height for readability */
+}
+
+/* Button container */
+.accounting-transaction-modal .modal-button-container {
+    display: flex;
+    justify-content: flex-end; /* Right-aligned per MD3 */
+    gap: 12px; /* Space between buttons */
+    padding: 16px 24px 24px;
+    margin-top: 8px;
+}
+
+.accounting-transaction-modal .modal-button-container button {
+    padding: 10px 24px; /* More generous padding */
+    border-radius: 20px; /* Pill shape for buttons in MD3 */
+    font-size: 14px;
+    font-weight: 500; /* Medium weight */
+    transition: background-color 0.2s, transform 0.1s;
+    min-width: 100px; /* Minimum width for buttons */
     border: none;
     cursor: pointer;
-    font-size: 18px;
-    color: var(--text-muted);
 }
 
-.accounting-transaction-modal .date-time-container {
-    padding: 12px 18px;
-    border-top: none;
+.accounting-transaction-modal .modal-button-container button.mod-cta {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
 }
 
-.accounting-transaction-modal .setting-item {
-    border-top: none;
-    padding-top: 12px;
+.accounting-transaction-modal .modal-button-container button.mod-cta:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.accounting-transaction-modal .modal-button-container button:not(.mod-cta) {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.accounting-transaction-modal .modal-button-container button:not(.mod-cta):hover {
+    background-color: var(--background-modifier-border);
+}
+
+.accounting-transaction-modal .modal-button-container button:active {
+    transform: translateY(1px);
+}
+
+/* Fix for datalist autocomplete */
+.accounting-transaction-modal datalist {
+    display: none; /* Hide the actual datalist */
+}
+
+/* Better styling for input fields with datalists */
+.accounting-transaction-modal .account-input-class,
+.accounting-transaction-modal .category-input-class,
+.accounting-transaction-modal .tags-input-class {
+    width: 100%;
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+    padding-right: 36px; /* Space for the dropdown arrow */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .accounting-transaction-modal.modal {
+        max-width: 95%;
+        margin: 0 auto;
+    }
+    
+    .accounting-transaction-modal .date-time-inputs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .accounting-transaction-modal .setting-item {
+        padding: 12px 16px;
+    }
+    
+    .accounting-transaction-modal h2,
+    .accounting-transaction-modal .form-group,
+    .accounting-transaction-modal .date-time-container,
+    .accounting-transaction-modal .budget-warnings-container,
+    .accounting-transaction-modal .modal-button-container {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
 }
 
 /* Form styling improvements */
