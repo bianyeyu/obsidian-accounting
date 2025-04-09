@@ -561,8 +561,8 @@ export class StatsView extends ItemView {
         // Create container for monthly charts
         const chartsContainer = containerEl.createDiv('monthly-charts-container');
         
-        // Render monthly transactions chart
-        this.renderMonthlyTransactionsChart(chartsContainer, scopedTransactions);
+        // Render monthly transactions heatmap (replacing the bar chart)
+        this.renderMonthlyActivityHeatmap(chartsContainer, scopedTransactions);
         
         // Render asset trend for the month
         this.renderAssetTrendChart(chartsContainer, scopedTransactions); // Pass scoped transactions
@@ -575,28 +575,32 @@ export class StatsView extends ItemView {
     }
     
     /**
-     * Render yearly overview with yearly transactions, heatmap, and asset trend
+     * Render yearly overview with transactions chart, yearly heatmap, and expense breakdown
      */
     private renderYearlyOverview(containerEl: HTMLElement): void {
-         // Summary section is already added by renderOverviewTab
+        // Summary section is already added by renderOverviewTab
         // containerEl.createEl('h3', { text: 'Yearly Details' }); // Title redundant with summary
         
         // Create year selector
         this.createYearSelector(containerEl);
         
         const scopedTransactions = this.getFilteredTransactionsForCurrentScope(); // Transactions for the selected year
-
+        
         // Create container for yearly charts
         const chartsContainer = containerEl.createDiv('yearly-charts-container');
         
-        // Render yearly transactions chart
+        // Render yearly transactions chart (monthly breakdown)
         this.renderYearlyTransactionsChart(chartsContainer, scopedTransactions);
         
-        // Render yearly heatmap (needs data for the whole year)
-        this.renderYearlyHeatmap(chartsContainer, scopedTransactions);
+        // New: Render activity heatmap for the current month of the selected year
+        this.renderActivityHeatmap(
+            chartsContainer, 
+            scopedTransactions, 
+            `Daily Activity - ${moment(this.selectedDate).format('MMMM YYYY')}`
+        );
         
-        // Render yearly asset trend 
-        this.renderAssetTrendChart(chartsContainer, scopedTransactions); // Use same trend chart, now scoped to year
+        // Render yearly heatmap
+        this.renderYearlyHeatmap(chartsContainer, scopedTransactions);
         
         // Render expense breakdown for the year
         this.renderExpenseBreakdownChart(chartsContainer, scopedTransactions);
@@ -620,6 +624,13 @@ export class StatsView extends ItemView {
         
         // Render custom transactions chart (e.g., daily breakdown over the custom range)
         this.renderCustomTransactionsChart(chartsContainer, scopedTransactions);
+        
+        // New: Render activity heatmap for the custom range
+        this.renderActivityHeatmap(
+            chartsContainer, 
+            scopedTransactions, 
+            'Daily Activity'
+        );
         
         // Render asset trend for the custom period
         this.renderAssetTrendChart(chartsContainer, scopedTransactions);
@@ -1091,7 +1102,7 @@ export class StatsView extends ItemView {
             dayLabel.setText(dayMoment.format('D'));
         });
         
-        // Add legend 
+        // Add legend
         this.addIncomeExpenseLegend(chartContainer);
     }
     
@@ -3899,4 +3910,191 @@ export class StatsView extends ItemView {
     // private getScopedTransactionsForOverview(): Transaction[] {
     //     return this.getFilteredTransactionsForCurrentScope();
     // }
+
+    /**
+     * Render a GitHub-like activity heatmap for any date range
+     * Date range is determined based on the provided transactions
+     */
+    private renderActivityHeatmap(containerEl: HTMLElement, transactions: Transaction[], title: string): void {
+        // This is a more generalized version that will work for any date range
+        const chartContainer = containerEl.createDiv('chart-container monthly-heatmap-container');
+        chartContainer.createEl('h4', { text: title });
+        
+        if (transactions.length === 0) {
+            chartContainer.createEl('p', { text: 'No transactions found for this period.' });
+            return;
+        }
+        
+        // Determine the date range for the heatmap
+        let startDate: moment.Moment, endDate: moment.Moment;
+        
+        // For custom ranges, use the transaction dates
+        if (this.currentSecondaryTab === SecondaryTab.CUSTOM) {
+            // Get min/max dates from transactions
+            startDate = moment.min(transactions.map(t => moment(getDatePart(t.date))));
+            endDate = moment.max(transactions.map(t => moment(getDatePart(t.date))));
+            
+            // Limit to a reasonable range (e.g., 31 days) if too large
+            const daysInRange = endDate.diff(startDate, 'days');
+            if (daysInRange > 31) {
+                // If more than a month, use the most recent month
+                startDate = endDate.clone().subtract(30, 'days');
+            }
+        } else if (this.currentSecondaryTab === SecondaryTab.YEARLY) {
+            // For yearly view, use the selected month
+            const selectedYearMoment = moment(this.selectedDate);
+            const currentMonth = moment().month();
+            startDate = selectedYearMoment.clone().month(currentMonth).startOf('month');
+            endDate = selectedYearMoment.clone().month(currentMonth).endOf('month');
+        } else {
+            // For monthly view, use the selected month
+            const selectedMonthMoment = moment(this.selectedDate);
+            startDate = selectedMonthMoment.clone().startOf('month');
+            endDate = selectedMonthMoment.clone().endOf('month');
+        }
+        
+        // Group transactions by day
+        const transactionsByDay: Record<string, { income: number, expense: number, net: number, count: number }> = {};
+        
+        // Initialize all days in the range
+        let currentDate = startDate.clone();
+        while (currentDate.isSameOrBefore(endDate, 'day')) {
+            const dateStr = currentDate.format('YYYY-MM-DD');
+            transactionsByDay[dateStr] = { income: 0, expense: 0, net: 0, count: 0 };
+            currentDate.add(1, 'day');
+        }
+        
+        // Fill with transaction data
+        transactions.forEach(t => {
+            const dateString = getDatePart(t.date);
+            if (transactionsByDay[dateString]) {
+                // Safely check the transaction type
+                if (t.type === 'income') {
+                    transactionsByDay[dateString].income += t.amount;
+                } else {
+                    transactionsByDay[dateString].expense += t.amount;
+                }
+                
+                transactionsByDay[dateString].count++;
+                // Calculate net (income - expense)
+                transactionsByDay[dateString].net = transactionsByDay[dateString].income - transactionsByDay[dateString].expense;
+            }
+        });
+        
+        // Find max values for color scaling
+        const netValues = Object.values(transactionsByDay).map(d => d.net);
+        const maxPositiveNet = Math.max(0, ...netValues.filter(n => n > 0));
+        const minNegativeNet = Math.min(0, ...netValues.filter(n => n < 0));
+        const hasNegative = minNegativeNet < 0;
+        const hasPositive = maxPositiveNet > 0;
+        
+        // Create the heatmap grid
+        const heatmapEl = chartContainer.createDiv('monthly-heatmap-grid');
+        
+        // Add weekday labels
+        const weekdayLabelsContainer = heatmapEl.createDiv('heatmap-weekdays');
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        weekdays.forEach(day => {
+            weekdayLabelsContainer.createDiv('heatmap-weekday-label', el => el.setText(day.substring(0,1)));
+        });
+        
+        // Create the calendar-like grid
+        const calendarGrid = heatmapEl.createDiv('heatmap-calendar-grid');
+        
+        // Add spacer cells for days before the 1st of the range
+        const startDayOfWeek = startDate.day(); // 0 = Sunday, 6 = Saturday
+        for (let i = 0; i < startDayOfWeek; i++) {
+            calendarGrid.createDiv('heatmap-day empty');
+        }
+        
+        // Add cells for each day in the range
+        currentDate = startDate.clone();
+        while (currentDate.isSameOrBefore(endDate, 'day')) {
+            const dateStr = currentDate.format('YYYY-MM-DD');
+            const dayData = transactionsByDay[dateStr];
+            const dayCell = calendarGrid.createDiv('heatmap-day');
+            
+            // Add data attributes for tooltip
+            dayCell.dataset.date = dateStr;
+            dayCell.dataset.tooltip = `${dateStr}\nIncome: ¥${dayData.income.toFixed(2)}\nExpense: ¥${dayData.expense.toFixed(2)}\nNet: ¥${dayData.net.toFixed(2)}`;
+            
+            // Add the day number inside the cell
+            dayCell.createDiv('heatmap-day-number', el => el.setText(currentDate.date().toString()));
+            
+            // Apply color based on net value
+            let intensity = 0;
+            if (dayData.net > 0 && maxPositiveNet > 0) {
+                intensity = Math.min(1, dayData.net / maxPositiveNet);
+                dayCell.addClass('positive');
+                // Use HSL: green, lightness based on intensity
+                dayCell.style.backgroundColor = `hsl(120, 60%, ${90 - intensity * 40}%)`;
+            } else if (dayData.net < 0 && minNegativeNet < 0) {
+                intensity = Math.min(1, dayData.net / minNegativeNet);
+                dayCell.addClass('negative');
+                // Use HSL: red, lightness based on intensity
+                dayCell.style.backgroundColor = `hsl(0, 70%, ${90 - intensity * 40}%)`;
+            } else {
+                dayCell.addClass('zero');
+                // Light gray for days with no transactions or zero net
+                dayCell.style.backgroundColor = `hsl(0, 0%, 95%)`;
+            }
+            
+            // Add a click listener to show transactions for this day
+            dayCell.addEventListener('click', () => {
+                // Filter transactions for this specific day
+                const dayTransactions = transactions.filter(tx => getDatePart(tx.date) === dateStr);
+                
+                // Show a popup with transactions for this day
+                if (dayTransactions.length > 0) {
+                    this.showDayTransactionsPopup(containerEl, dateStr, dayTransactions);
+                }
+            });
+            
+            currentDate.add(1, 'day');
+        }
+        
+        // Add legend for heatmap
+        const legendContainer = chartContainer.createDiv('heatmap-legend');
+        
+        if (hasNegative || hasPositive) {
+            legendContainer.createSpan({ text: 'Less' });
+            
+            // Negative scale (if any negative values exist)
+            if (hasNegative) {
+                const negScale = legendContainer.createDiv('heatmap-scale negative-scale');
+                for (let i = 0; i <= 4; i++) {
+                    negScale.createDiv('heatmap-legend-color', el => 
+                        el.style.backgroundColor = `hsl(0, 70%, ${90 - (i/4)*40}%)`);
+                }
+            }
+            
+            // Zero
+            legendContainer.createDiv('heatmap-legend-color zero', el =>
+                el.style.backgroundColor = `hsl(0, 0%, 95%)`);
+            
+            // Positive scale (if any positive values exist)
+            if (hasPositive) {
+                const posScale = legendContainer.createDiv('heatmap-scale positive-scale');
+                for (let i = 0; i <= 4; i++) {
+                    posScale.createDiv('heatmap-legend-color', el => 
+                        el.style.backgroundColor = `hsl(120, 60%, ${90 - (i/4)*40}%)`);
+                }
+            }
+            
+            legendContainer.createSpan({ text: 'More' });
+            
+            // Add color meaning
+            const legendExplain = chartContainer.createDiv('heatmap-legend-explanation');
+            legendExplain.createSpan({ text: 'Green: Income > Expense, Red: Expense > Income' });
+        }
+    }
+    
+    // Replace the previous implementation with a call to the generalized version
+    private renderMonthlyActivityHeatmap(containerEl: HTMLElement, transactions: Transaction[]): void {
+        this.renderActivityHeatmap(
+            containerEl, 
+            transactions, 
+            `Daily Activity - ${moment(this.selectedDate).format('MMMM YYYY')}`
+        );
+    }
 }
